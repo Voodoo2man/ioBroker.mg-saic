@@ -76,6 +76,11 @@ export const excludedChargingSessionFields = [
 
 export const excludedChargingStatisticsFields = ['fuelRangeElec', 'mileage'] as const;
 
+/**
+ * Map confirmed SAIC charging fields to writable adapter setting values.
+ *
+ * @param fields Raw charging management fields returned by SAIC.
+ */
 export function getChargingSettingFeedback(
 	fields: Record<string, number | string | undefined>,
 ): Record<string, number | string> {
@@ -103,6 +108,12 @@ export function getChargingSettingFeedback(
 	return feedback;
 }
 
+/**
+ * Determine whether cloud feedback may update a local setting state.
+ *
+ * @param state Current adapter state.
+ * @param hasPendingEdit Whether a saved local edit is waiting for Apply.
+ */
 export function shouldApplySettingFeedback(state: ioBroker.State | null | undefined, hasPendingEdit: boolean): boolean {
 	return !hasPendingEdit && (!state || state.ack);
 }

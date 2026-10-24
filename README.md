@@ -44,6 +44,7 @@ The adapter is published on npm but has not yet been added to the ioBroker adapt
 - (Voodoo2man) Corrected GPS coordinates.
 - (Voodoo2man) Fixed incorrect datapoint values.
 - (Voodoo2man) Removed duplicate and irrelevant datapoints.
+- (Voodoo2man) Set min version of admin to 8.2.0, js-controller 7.2.2, node.js 24
 
 ### 0.0.3 (2026-10-21)
 
