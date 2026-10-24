@@ -42,7 +42,7 @@ The adapter is published on npm but has not yet been added to the ioBroker adapt
 ### **WORK IN PROGRESS**
 
 - (Voodoo2man) Corrected GPS coordinates.
-- (Voodoo2man) Fixed additional datapoint values.
+- (Voodoo2man) Fixed incorrect datapoint values.
 - (Voodoo2man) Removed duplicate and irrelevant datapoints.
 
 ### 0.0.3 (2026-10-21)
