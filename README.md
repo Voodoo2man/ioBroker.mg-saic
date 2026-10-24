@@ -11,7 +11,9 @@ The adapter is intended for connecting MG and SAIC vehicles to ioBroker through 
 
 ### Before you start
 
-- Node.js 22.19.0 or later is required.
+- Node.js 24.0.0 or later is required.
+- ioBroker js-controller 7.2.2 or later is required.
+- ioBroker Admin 8.2.0 or later is required.
 - Use an iSmart account that has access to the vehicle. A separate account shared with the vehicle is recommended to avoid interfering with the mobile app session.
 - Have the account password ready. The adapter stores it as a protected setting.
 - Select the region for the account. Available regions are European Union, China, Australia, Brazil, Israel, Turkey, Thailand, and Rest of World. India is not supported.
