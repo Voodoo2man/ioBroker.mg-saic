@@ -44,7 +44,6 @@ The adapter is published on npm but has not yet been added to the ioBroker adapt
 - (Voodoo2man) Corrected GPS latitude and longitude values.
 - (Voodoo2man) Removed duplicate and irrelevant vehicle datapoints.
 - (Voodoo2man) Fixed additional datapoint values.
-- (Voodoo2man) Fixed confirmation of vehicle setting updates.
 
 ### 0.0.3 (2026-10-21)
 
