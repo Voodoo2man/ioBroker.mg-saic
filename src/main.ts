@@ -16,6 +16,7 @@ import {
 } from './saic-client';
 import { resolveSaicRegion } from './regions';
 import { isRefreshCommand, normalizeStateChangeId } from './refresh-command';
+import { parsePendingSettingEdits, serializePendingSettingEdits } from './pending-setting-edits';
 import {
 	getVehicleStatusGroup,
 	getVehicleStatusMetadata,
@@ -158,6 +159,7 @@ class MgSaic extends utils.Adapter {
 	private readonly lastCanonicalStatusTimes = new Map<string, number>();
 	private readonly vehicleCommandsInProgress = new Set<string>();
 	private readonly pendingSettingEdits = new Map<string, number>();
+	private pendingSettingEditsWrite: Promise<void> = Promise.resolve();
 	private settingEditSequence = 0;
 
 	private async onReady(): Promise<void> {
@@ -169,6 +171,16 @@ class MgSaic extends utils.Adapter {
 		await this.extendObjectAsync('info.backend', { common: { name: getRuntimeName('backend') } });
 		await this.extendObjectAsync('info.connection', { common: { name: getRuntimeName('connection') } });
 		await this.extendObjectAsync('info.lastError', { common: { name: getRuntimeName('lastError') } });
+		await this.setObjectNotExistsAsync('internal', {
+			type: 'channel',
+			common: { name: 'Internal' },
+			native: {},
+		});
+		await this.setObjectNotExistsAsync('internal.pendingSettingEdits', {
+			type: 'state',
+			common: { name: 'Pending setting edits', type: 'string', role: 'json', read: true, write: false },
+			native: {},
+		});
 		await this.setObjectNotExistsAsync('commands', {
 			type: 'channel',
 			common: { name: getRuntimeName('commands') },
@@ -270,6 +282,7 @@ class MgSaic extends utils.Adapter {
 				}
 				await this.delObjectAsync(`vehicles.${vehicle.vin}.canonicalStatus`, { recursive: true });
 			}
+			await this.restorePendingSettingEdits();
 			await this.setState('info.connection', true, true);
 			this.log.info(`SAIC account authenticated; discovered ${this.vehicles.length} vehicle(s).`);
 			if (this.vehicles.length === 0) {
@@ -553,10 +566,7 @@ class MgSaic extends utils.Adapter {
 		if (settingInput) {
 			const stateId = vehicleCommandPath(settingInput.vin, settingInput.stateId);
 			this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
-			void this.setStateAsync(vehicleCommandPath(settingInput.vin, settingInput.stateId), {
-				val: state.val,
-				ack: true,
-			});
+			void this.acknowledgeSettingEdit(stateId, state.val);
 			return;
 		}
 		const seatHeating = this.vehicles
@@ -582,6 +592,48 @@ class MgSaic extends utils.Adapter {
 			return;
 		}
 		void this.executeVehicleCommand(vehicle.vin, commandEntry.id);
+	}
+
+	private async acknowledgeSettingEdit(stateId: string, value: ioBroker.StateValue): Promise<void> {
+		try {
+			await this.persistPendingSettingEdits();
+			await this.setStateAsync(stateId, { val: value, ack: true });
+		} catch (error) {
+			const details = error instanceof Error ? error.message : 'Unknown state error';
+			this.log.error(`Could not persist pending setting ${stateId}: ${details}`);
+		}
+	}
+
+	private async persistPendingSettingEdits(): Promise<void> {
+		const serialized = serializePendingSettingEdits(this.pendingSettingEdits.keys());
+		const write = this.pendingSettingEditsWrite
+			.catch(() => undefined)
+			.then(async () => {
+				await this.setStateAsync('internal.pendingSettingEdits', { val: serialized, ack: true });
+			});
+		this.pendingSettingEditsWrite = write;
+		await write;
+	}
+
+	private async restorePendingSettingEdits(): Promise<void> {
+		const validStateIds = new Set(
+			this.vehicles.flatMap(({ vin }) =>
+				Object.keys(settingGroups)
+					.filter(stateId => stateId !== 'driverSeatHeatLevel' && stateId !== 'passengerSeatHeatLevel')
+					.map(stateId => vehicleCommandPath(vin, stateId)),
+			),
+		);
+		const savedState = await this.getStateAsync('internal.pendingSettingEdits');
+		for (const stateId of parsePendingSettingEdits(savedState?.val, validStateIds)) {
+			this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
+		}
+		for (const stateId of validStateIds) {
+			const currentState = await this.getStateAsync(stateId);
+			if (currentState && !currentState.ack && !this.pendingSettingEdits.has(stateId)) {
+				this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
+			}
+		}
+		await this.persistPendingSettingEdits();
 	}
 
 	private async executeSeatHeating(
@@ -659,10 +711,25 @@ class MgSaic extends utils.Adapter {
 				setting,
 				this.abortController.signal,
 			);
+			const clearedEdits: Array<[string, number]> = [];
 			for (const [settingId, version] of editVersions) {
 				if (this.pendingSettingEdits.get(settingId) === version) {
 					this.pendingSettingEdits.delete(settingId);
+					clearedEdits.push([settingId, version]);
 				}
+			}
+			try {
+				await this.persistPendingSettingEdits();
+			} catch (error) {
+				for (const [settingId, version] of clearedEdits) {
+					if (!this.pendingSettingEdits.has(settingId)) {
+						this.pendingSettingEdits.set(settingId, version);
+					}
+				}
+				const details = error instanceof Error ? error.message : 'Unknown state error';
+				this.log.warn(
+					`SAIC ${action} completed for ${vin}, but pending edits could not be persisted: ${details}`,
+				);
 			}
 			this.log.info(`SAIC ${action} completed for ${vin}`);
 		} catch (error) {

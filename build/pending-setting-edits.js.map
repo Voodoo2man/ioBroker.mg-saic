@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/pending-setting-edits.ts"],
+  "sourcesContent": ["export function parsePendingSettingEdits(value: unknown, validStateIds: ReadonlySet<string>): string[] {\n\tif (typeof value !== 'string') {\n\t\treturn [];\n\t}\n\ttry {\n\t\tconst parsed: unknown = JSON.parse(value);\n\t\tif (!Array.isArray(parsed)) {\n\t\t\treturn [];\n\t\t}\n\t\treturn [...new Set(parsed.filter((id): id is string => typeof id === 'string' && validStateIds.has(id)))];\n\t} catch {\n\t\treturn [];\n\t}\n}\n\nexport function serializePendingSettingEdits(stateIds: Iterable<string>): string {\n\treturn JSON.stringify([...stateIds]);\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAO,SAAS,yBAAyB,OAAgB,eAA8C;AACtG,MAAI,OAAO,UAAU,UAAU;AAC9B,WAAO,CAAC;AAAA,EACT;AACA,MAAI;AACH,UAAM,SAAkB,KAAK,MAAM,KAAK;AACxC,QAAI,CAAC,MAAM,QAAQ,MAAM,GAAG;AAC3B,aAAO,CAAC;AAAA,IACT;AACA,WAAO,CAAC,GAAG,IAAI,IAAI,OAAO,OAAO,CAAC,OAAqB,OAAO,OAAO,YAAY,cAAc,IAAI,EAAE,CAAC,CAAC,CAAC;AAAA,EACzG,QAAQ;AACP,WAAO,CAAC;AAAA,EACT;AACD;AAEO,SAAS,6BAA6B,UAAoC;AAChF,SAAO,KAAK,UAAU,CAAC,GAAG,QAAQ,CAAC;AACpC;",
+  "names": []
+}
