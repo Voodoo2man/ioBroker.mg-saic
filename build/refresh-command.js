@@ -18,14 +18,19 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var refresh_command_exports = {};
 __export(refresh_command_exports, {
-  isRefreshCommand: () => isRefreshCommand
+  isRefreshCommand: () => isRefreshCommand,
+  normalizeStateChangeId: () => normalizeStateChangeId
 });
 module.exports = __toCommonJS(refresh_command_exports);
 function isRefreshCommand(id, namespace, state) {
-  return id === `${namespace}.commands.refresh` && state !== null && state !== void 0 && !state.ack && state.val === true;
+  return normalizeStateChangeId(id, namespace) === `${namespace}.commands.refresh` && state !== null && state !== void 0 && !state.ack && state.val === true;
+}
+function normalizeStateChangeId(id, namespace) {
+  return id.startsWith(`${namespace}.`) ? id : `${namespace}.${id}`;
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  isRefreshCommand
+  isRefreshCommand,
+  normalizeStateChangeId
 });
 //# sourceMappingURL=refresh-command.js.map
