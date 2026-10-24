@@ -103,6 +103,10 @@ export function getChargingSettingFeedback(
 	return feedback;
 }
 
+export function shouldApplySettingFeedback(state: ioBroker.State | null | undefined, hasPendingEdit: boolean): boolean {
+	return !hasPendingEdit && (!state || state.ack);
+}
+
 function getTimeValue(hour: number | string | undefined, minute: number | string | undefined): string | undefined {
 	if (typeof hour !== 'number' || typeof minute !== 'number') {
 		return undefined;

@@ -28,6 +28,7 @@ __export(status_metadata_exports, {
   normalizeChargingValue: () => normalizeChargingValue,
   normalizeVehicleStatusValue: () => normalizeVehicleStatusValue,
   resolveOdometerValue: () => resolveOdometerValue,
+  shouldApplySettingFeedback: () => shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue: () => shouldDeleteUnavailableStatusValue
 });
 module.exports = __toCommonJS(status_metadata_exports);
@@ -86,6 +87,9 @@ function getChargingSettingFeedback(fields) {
     feedback.chargeTargetSoc = (targetSoc + 3) * 10;
   }
   return feedback;
+}
+function shouldApplySettingFeedback(state, hasPendingEdit) {
+  return !hasPendingEdit && (!state || state.ack);
 }
 function getTimeValue(hour, minute) {
   if (typeof hour !== "number" || typeof minute !== "number") {
@@ -1053,6 +1057,7 @@ function resolveOdometerValue(liveValue, cachedValue) {
   normalizeChargingValue,
   normalizeVehicleStatusValue,
   resolveOdometerValue,
+  shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue
 });
 //# sourceMappingURL=status-metadata.js.map

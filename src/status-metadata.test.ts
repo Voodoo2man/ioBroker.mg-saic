@@ -10,6 +10,7 @@ import {
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
 	resolveOdometerValue,
+	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
 } from './status-metadata';
 
@@ -33,6 +34,13 @@ describe('getVehicleStatusMetadata', () => {
 			chargeTargetSoc: 80,
 		});
 		expect(getChargingSettingFeedback({ bmsReserStHourDspCmd: 24, bmsReserStMintueDspCmd: 0 })).to.deep.equal({});
+	});
+
+	it('does not overwrite a pending setting edit even after it was acknowledged', () => {
+		expect(shouldApplySettingFeedback({ val: 90, ack: true } as ioBroker.State, true)).to.equal(false);
+		expect(shouldApplySettingFeedback({ val: 90, ack: false } as ioBroker.State, false)).to.equal(false);
+		expect(shouldApplySettingFeedback({ val: 80, ack: true } as ioBroker.State, false)).to.equal(true);
+		expect(shouldApplySettingFeedback(null, false)).to.equal(true);
 	});
 
 	it('assigns engineering roles and units to known charging measurements', () => {

@@ -27,6 +27,7 @@ import {
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
 	resolveOdometerValue,
+	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
 } from './status-metadata';
 import { getChargingFieldName, getRuntimeName } from './runtime-translations';
@@ -114,6 +115,13 @@ const settingActions = [
 
 type SettingAction = (typeof settingActions)[number]['id'];
 
+const settingInputsByAction: Record<SettingAction, string[]> = {
+	climateTemperatureApply: ['climateTemperature'],
+	chargingSettingsApply: ['chargeTargetSoc', 'chargingCurrentLimit'],
+	chargingScheduleApply: ['chargingScheduleStart', 'chargingScheduleEnd', 'chargingScheduleMode'],
+	batteryHeatingScheduleApply: ['batteryHeatingScheduleEnabled', 'batteryHeatingScheduleStart'],
+};
+
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 
 class MgSaic extends utils.Adapter {
@@ -149,6 +157,8 @@ class MgSaic extends utils.Adapter {
 	private readonly lastStatusTimes = new Map<string, number>();
 	private readonly lastCanonicalStatusTimes = new Map<string, number>();
 	private readonly vehicleCommandsInProgress = new Set<string>();
+	private readonly pendingSettingEdits = new Map<string, number>();
+	private settingEditSequence = 0;
 
 	private async onReady(): Promise<void> {
 		if (this.stopping) {
@@ -541,6 +551,8 @@ class MgSaic extends utils.Adapter {
 			)
 			.find(({ vin, stateId }) => eventId === `${this.namespace}.${vehicleCommandPath(vin, stateId)}`);
 		if (settingInput) {
+			const stateId = vehicleCommandPath(settingInput.vin, settingInput.stateId);
+			this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
 			void this.setStateAsync(vehicleCommandPath(settingInput.vin, settingInput.stateId), {
 				val: state.val,
 				ack: true,
@@ -619,6 +631,12 @@ class MgSaic extends utils.Adapter {
 
 	private async executeVehicleSetting(vin: string, action: SettingAction): Promise<void> {
 		const stateId = vehicleCommandPath(vin, action);
+		const editVersions = new Map(
+			settingInputsByAction[action]
+				.map(settingId => vehicleCommandPath(vin, settingId))
+				.filter(settingId => this.pendingSettingEdits.has(settingId))
+				.map(settingId => [settingId, this.pendingSettingEdits.get(settingId)!]),
+		);
 		if (this.vehicleCommandsInProgress.has(vin)) {
 			await this.setStateAsync(stateId, { val: false, ack: true });
 			this.log.warn(`Ignored ${action} for ${vin}: another vehicle command is still running`);
@@ -641,6 +659,11 @@ class MgSaic extends utils.Adapter {
 				setting,
 				this.abortController.signal,
 			);
+			for (const [settingId, version] of editVersions) {
+				if (this.pendingSettingEdits.get(settingId) === version) {
+					this.pendingSettingEdits.delete(settingId);
+				}
+			}
 			this.log.info(`SAIC ${action} completed for ${vin}`);
 		} catch (error) {
 			if (!this.stopping) {
@@ -888,7 +911,7 @@ class MgSaic extends utils.Adapter {
 				if (field === 'bmsOnBdChrgTrgtSOCDspCmd' && typeof value === 'number' && value >= 1 && value <= 7) {
 					const targetSocId = vehicleCommandPath(vin, 'chargeTargetSoc');
 					const targetSocState = await this.getStateAsync(targetSocId);
-					if (!targetSocState || targetSocState.ack) {
+					if (shouldApplySettingFeedback(targetSocState, this.pendingSettingEdits.has(targetSocId))) {
 						await this.setStateAsync(targetSocId, {
 							val: normalizeChargingValue(field, value) as number,
 							ack: true,
@@ -900,7 +923,7 @@ class MgSaic extends utils.Adapter {
 		for (const [setting, value] of Object.entries(getChargingSettingFeedback(charging.chrgMgmtData))) {
 			const stateId = vehicleCommandPath(vin, setting);
 			const state = await this.getStateAsync(stateId);
-			if (!state || state.ack) {
+			if (shouldApplySettingFeedback(state, this.pendingSettingEdits.has(stateId))) {
 				await this.setStateAsync(stateId, { val: value, ack: true });
 			}
 		}
