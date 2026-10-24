@@ -814,6 +814,11 @@ class MgSaic extends utils.Adapter {
 				}
 				continue;
 			}
+			const normalizedValue = normalizeVehicleStatusValue(key, value);
+			if (normalizedValue === undefined) {
+				await this.delObjectAsync(stateId);
+				continue;
+			}
 			await this.setObjectNotExistsAsync(groupId, {
 				type: 'channel',
 				common: { name: getRuntimeName(group) },
@@ -848,7 +853,7 @@ class MgSaic extends utils.Adapter {
 			if (this.stopping) {
 				return;
 			}
-			await this.setStateAsync(stateId, { val: normalizeVehicleStatusValue(key, value), ack: true });
+			await this.setStateAsync(stateId, { val: normalizedValue, ack: true });
 			if (this.stopping) {
 				return;
 			}

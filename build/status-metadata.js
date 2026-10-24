@@ -1033,8 +1033,16 @@ function normalizeVehicleStatusValue(key, value) {
   if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
     return value === 1;
   }
-  if ((key === "gpsLatitude" || key === "gpsLongitude") && value === -128) {
-    return value;
+  if (key === "gpsLatitude" || key === "gpsLongitude") {
+    if (value === -128) {
+      return void 0;
+    }
+    const coordinate = value * statusScales[key].factor;
+    const maximum = key === "gpsLatitude" ? 90 : 180;
+    if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
+      return void 0;
+    }
+    return Number(coordinate.toFixed(statusScales[key].precision));
   }
   const scale = statusScales[key];
   return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;

@@ -747,6 +747,11 @@ class MgSaic extends utils.Adapter {
         }
         continue;
       }
+      const normalizedValue = (0, import_status_metadata.normalizeVehicleStatusValue)(key, value);
+      if (normalizedValue === void 0) {
+        await this.delObjectAsync(stateId);
+        continue;
+      }
       await this.setObjectNotExistsAsync(groupId, {
         type: "channel",
         common: { name: (0, import_runtime_translations.getRuntimeName)(group) },
@@ -781,7 +786,7 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
-      await this.setStateAsync(stateId, { val: (0, import_status_metadata.normalizeVehicleStatusValue)(key, value), ack: true });
+      await this.setStateAsync(stateId, { val: normalizedValue, ack: true });
       if (this.stopping) {
         return;
       }

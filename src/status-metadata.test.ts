@@ -211,7 +211,10 @@ describe('getVehicleStatusMetadata', () => {
 	it('converts scaled GPS coordinates to decimal degrees', () => {
 		expect(normalizeVehicleStatusValue('gpsLatitude', 49832397)).to.equal(49.832397);
 		expect(normalizeVehicleStatusValue('gpsLongitude', 8504718)).to.equal(8.504718);
-		expect(normalizeVehicleStatusValue('gpsLatitude', -128)).to.equal(-128);
+		expect(normalizeVehicleStatusValue('gpsLatitude', -128)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLongitude', -128)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLatitude', 90000001)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLongitude', -180000001)).to.equal(undefined);
 	});
 
 	it('leaves unknown measurements unchanged', () => {

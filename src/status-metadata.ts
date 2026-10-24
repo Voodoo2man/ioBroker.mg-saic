@@ -1083,15 +1083,23 @@ export function getVehicleStatusMetadata(key: string): VehicleStatusMetadata {
  * @param key SAIC status field name.
  * @param value Numeric value returned by the API.
  */
-export function normalizeVehicleStatusValue(key: string, value: number): number | boolean {
+export function normalizeVehicleStatusValue(key: string, value: number): number | boolean | undefined {
 	if (key === 'statusTime') {
 		return value * 1000;
 	}
 	if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
 		return value === 1;
 	}
-	if ((key === 'gpsLatitude' || key === 'gpsLongitude') && value === -128) {
-		return value;
+	if (key === 'gpsLatitude' || key === 'gpsLongitude') {
+		if (value === -128) {
+			return undefined;
+		}
+		const coordinate = value * statusScales[key].factor;
+		const maximum = key === 'gpsLatitude' ? 90 : 180;
+		if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
+			return undefined;
+		}
+		return Number(coordinate.toFixed(statusScales[key].precision));
 	}
 	const scale = statusScales[key];
 	return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;
