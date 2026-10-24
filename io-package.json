@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "mg-saic",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "news": {
+      "0.0.4": {
+        "en": "Corrected GPS coordinates.\nFixed incorrect datapoint values.\nRemoved duplicate and irrelevant datapoints.\nSet min version of admin to 8.2.0, js-controller 7.2.2, node.js 24",
+        "de": "Korrigierte GPS-Daten.\nFalsche Datenpunktwerte behoben.\nDoppelte und irrelevante Datenpunkte entfernt.\nSetze Admin auf 8.2.0, js-controller 7.2.2, node.js 24",
+        "ru": "Исправлены координаты GPS.\nИсправлены неправильные значения точек данных.\nУдалены повторяющиеся и нерелевантные точки данных.\nУстановите минимальную версию администратора на 8.2.0, js-контроллер 7.2.2, node.js 24",
+        "pt": "Coordenadas GPS corretas.\nValores de dados incorretos.\nRemoveu dados duplicados e irrelevantes.\nDefina min de admin para 8.2.0, js-controller 7.2.2, node.js 24",
+        "nl": "GPS-coördinaten gecorrigeerd.\nOnjuiste datapuntwaarden opgelost.\nDubbele en irrelevante datapunten verwijderd.\nStel de minimale versie van admin in op 8.2.0, js-controller 7.2.2, node.js 24",
+        "fr": "Coordonnées GPS corrigées.\nCorrection de points de données incorrects.\nSuppression des points de données inutiles et dupliqués.\nRéglez Admin sur 8.2.0, js-controller 7.2.2, node.js 24",
+        "it": "Coordinate GPS corrette\nCorretti valori errati per i punti.\nDati duplicati e irrilevanti rimossi.\nImposta admin min a 8.2.0, js-controller 7.2.2, node.js 24",
+        "es": "Coordenadas GPS corregidas\nSe corrigieron valores de datos incorrectos.\nEliminó puntos de datos duplicados e irrelevantes.\nDefina mi versión de admin en 8.2.0, js-controller 7.2.2, node.js 24",
+        "pl": "Poprawione współrzędne GPS.\nNaprawiono nieprawidłowe wartości punktów danych.\nUsunięto zduplikowane i nieistotne punkty danych.\nUstaw minimalną wersję administratora na 8.2.0, js-controller 7.2.2, node.js 24",
+        "uk": "Виправлені координати GPS.\nВиправлені неправильні значення точки даних.\nВидалені дублікати та невідповідні точки даних.\nВстановіть мінімальну версію адміністратора на 8.2.0, js-контролер 7.2.2, node.js 24",
+        "zh-cn": "更正了 GPS 坐标。\n修复了不正确的数据点值。\n删除了重复和不相关的数据点。\n将 admin 的最小版本设置为 8.2.0、js-controller 7.2.2、node.js 24"
+      },
       "0.0.3": {
         "en": "* Improved release automation, updated Node.js release checks, and removed unpublished version metadata.\n* Added charging data\n* Fixed vehicle datapoint units and roles\n\nOlder changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).",
         "de": "* Verbesserte Release-Automation, neue Node.js Release-Checks und unveröffentlichte Metadaten.\n* Ladedaten hinzugefügt\n* Feste Fahrzeugdatengeräte und Rollen\n\nÄltere Changelog-Einträge gibt es in [Changelog_OLD.md] (CHANGELOG_OLD.md).",
