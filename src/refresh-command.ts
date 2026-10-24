@@ -15,6 +15,12 @@ export function isRefreshCommand(id: string, namespace: string, state: ioBroker.
 	);
 }
 
+/**
+ * Convert a local state ID to the fully qualified adapter-instance ID.
+ *
+ * @param id Local or fully qualified state ID.
+ * @param namespace Adapter instance namespace.
+ */
 export function normalizeStateChangeId(id: string, namespace: string): string {
 	return id.startsWith(`${namespace}.`) ? id : `${namespace}.${id}`;
 }
