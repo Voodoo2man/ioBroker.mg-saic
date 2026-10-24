@@ -2,15 +2,54 @@ import { expect } from 'chai';
 import {
 	getVehicleStatusGroup,
 	getVehicleStatusMetadata,
+	getChargingSettingFeedback,
+	excludedChargingSessionFields,
+	excludedChargingStatisticsFields,
+	excludedVehicleStatusFields,
 	getChargingFieldMetadata,
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
 	resolveOdometerValue,
+	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
 } from './status-metadata';
 
 describe('getVehicleStatusMetadata', () => {
+	it('reads confirmed charging settings from SAIC charging fields', () => {
+		expect(
+			getChargingSettingFeedback({
+				bmsAltngChrgCrntDspCmd: 3,
+				bmsReserCtrlDspCmd: 1,
+				bmsReserStHourDspCmd: 22,
+				bmsReserStMintueDspCmd: 5,
+				bmsReserSpHourDspCmd: 6,
+				bmsReserSpMintueDspCmd: 30,
+				bmsOnBdChrgTrgtSOCDspCmd: 5,
+			}),
+		).to.deep.equal({
+			chargingCurrentLimit: 3,
+			chargingScheduleMode: 1,
+			chargingScheduleStart: '22:05',
+			chargingScheduleEnd: '06:30',
+			chargeTargetSoc: 80,
+		});
+		expect(getChargingSettingFeedback({ bmsReserStHourDspCmd: 24, bmsReserStMintueDspCmd: 0 })).to.deep.equal({});
+	});
+
+	it('does not overwrite a pending setting edit even after it was acknowledged', () => {
+		expect(shouldApplySettingFeedback({ val: 90, ack: true } as ioBroker.State, true)).to.equal(false);
+		expect(shouldApplySettingFeedback({ val: 90, ack: false } as ioBroker.State, false)).to.equal(false);
+		expect(shouldApplySettingFeedback({ val: 80, ack: true } as ioBroker.State, false)).to.equal(true);
+		expect(shouldApplySettingFeedback(null, false)).to.equal(true);
+	});
+
 	it('assigns engineering roles and units to known charging measurements', () => {
+		expect(getChargingFieldMetadata('bmsChrgOtptCrntReq')).to.include({
+			type: 'number',
+			role: 'value.current',
+			unit: 'A',
+			factor: 0.01,
+		});
 		expect(getChargingFieldMetadata('bmsPackSOCDsp')).to.include({
 			type: 'number',
 			role: 'value.battery',
@@ -54,8 +93,10 @@ describe('getVehicleStatusMetadata', () => {
 	});
 
 	it('converts scaled and encoded charging values before publishing units', () => {
+		expect(normalizeChargingValue('bmsChrgOtptCrntReq', 1234)).to.equal(12.34);
 		expect(normalizeChargingValue('bmsPackSOCDsp', 831)).to.equal(83.1);
 		expect(normalizeChargingValue('bmsOnBdChrgTrgtSOCDspCmd', 7)).to.equal(100);
+		expect(normalizeChargingValue('bmsOnBdChrgTrgtSOCDspCmd', 5)).to.equal(80);
 		expect(normalizeChargingValue('bmsPackVol', 1707)).to.equal(426.8);
 		expect(normalizeChargingValue('bmsPackCrnt', 19800)).to.equal(10);
 		expect(normalizeChargingValue('chargingDuration', 3600)).to.equal(60);
@@ -92,6 +133,7 @@ describe('getVehicleStatusMetadata', () => {
 			'engineStatus',
 			'handBrake',
 			'lockStatus',
+			'mainBeamStatus',
 			'onlineStatus',
 			'passengerDoor',
 			'passengerWindow',
@@ -164,6 +206,15 @@ describe('getVehicleStatusMetadata', () => {
 		expect(normalizeVehicleStatusValue('statusTime', 1_792_442_089)).to.equal(1_792_442_089_000);
 		expect(normalizeVehicleStatusValue('speed', 425)).to.equal(42.5);
 		expect(normalizeVehicleStatusValue('remoteClimateStatus', 2)).to.equal(2);
+	});
+
+	it('converts scaled GPS coordinates to decimal degrees', () => {
+		expect(normalizeVehicleStatusValue('gpsLatitude', 49832397)).to.equal(49.832397);
+		expect(normalizeVehicleStatusValue('gpsLongitude', 8504718)).to.equal(8.504718);
+		expect(normalizeVehicleStatusValue('gpsLatitude', -128)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLongitude', -128)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLatitude', 90000001)).to.equal(undefined);
+		expect(normalizeVehicleStatusValue('gpsLongitude', -180000001)).to.equal(undefined);
 	});
 
 	it('leaves unknown measurements unchanged', () => {
@@ -240,5 +291,40 @@ describe('getVehicleStatusMetadata', () => {
 		for (const language of languages) {
 			expect(getVehicleStatusMetadata('unknownFutureField').name[language]).to.equal('unknownFutureField');
 		}
+	});
+
+	it('excludes the selected vehicle and charging datapoints', () => {
+		expect(excludedVehicleStatusFields).to.deep.equal([
+			'steeringWheelHeatFailureReason',
+			'canBusActive',
+			'extendedData2',
+			'extendedData1',
+			'vehElecRngDsp',
+			'gpsHdop',
+			'lastKeySeen',
+		]);
+		expect(excludedChargingSessionFields).to.deep.equal([
+			'bmsAdpPubChrgSttnDspCmd',
+			'bmsAltngChrgCrntDspCmd',
+			'bmsChrgCtrlDspCmd',
+			'bmsChrgOptnCrntReq',
+			'bmsChrgOptnCrntReqV',
+			'bmsChrgOtptCrntReqV',
+			'bmsChrgSpRsn',
+			'bmsDsChrgSpRsn',
+			'bmsPTCHeatReqDspCmd',
+			'bmsPTCHeatResp',
+			'bmsPackCrntV',
+			'clstrElecRngToEPT',
+			'chrngAddedElecRngV',
+			'disChrgngRmnngTime',
+			'disChrgngRmnngTimeV',
+			'imcuChrgngEstdElecRng',
+			'imcuDschrgngEstdElecRng',
+			'imcuChrgngEstdElecRngV',
+			'imcuDschrgngEstdElecRngV',
+			'imcuVehElecRngV',
+		]);
+		expect(excludedChargingStatisticsFields).to.deep.equal(['fuelRangeElec', 'mileage']);
 	});
 });

@@ -1,7 +1,7 @@
 {
   "version": 3,
   "sources": ["../src/refresh-command.ts"],
-  "sourcesContent": ["/**\n * Return whether an event requests a refresh on this adapter instance.\n *\n * @param id Fully qualified state ID from ioBroker.\n * @param namespace Adapter instance namespace.\n * @param state State value supplied by ioBroker.\n */\nexport function isRefreshCommand(id: string, namespace: string, state: ioBroker.State | null | undefined): boolean {\n\treturn (\n\t\tid === `${namespace}.commands.refresh` &&\n\t\tstate !== null &&\n\t\tstate !== undefined &&\n\t\t!state.ack &&\n\t\tstate.val === true\n\t);\n}\n"],
-  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAOO,SAAS,iBAAiB,IAAY,WAAmB,OAAmD;AAClH,SACC,OAAO,GAAG,SAAS,uBACnB,UAAU,QACV,UAAU,UACV,CAAC,MAAM,OACP,MAAM,QAAQ;AAEhB;",
+  "sourcesContent": ["/**\n * Return whether an event requests a refresh on this adapter instance.\n *\n * @param id Fully qualified state ID from ioBroker.\n * @param namespace Adapter instance namespace.\n * @param state State value supplied by ioBroker.\n */\nexport function isRefreshCommand(id: string, namespace: string, state: ioBroker.State | null | undefined): boolean {\n\treturn (\n\t\tnormalizeStateChangeId(id, namespace) === `${namespace}.commands.refresh` &&\n\t\tstate !== null &&\n\t\tstate !== undefined &&\n\t\t!state.ack &&\n\t\tstate.val === true\n\t);\n}\n\nexport function normalizeStateChangeId(id: string, namespace: string): string {\n\treturn id.startsWith(`${namespace}.`) ? id : `${namespace}.${id}`;\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAOO,SAAS,iBAAiB,IAAY,WAAmB,OAAmD;AAClH,SACC,uBAAuB,IAAI,SAAS,MAAM,GAAG,SAAS,uBACtD,UAAU,QACV,UAAU,UACV,CAAC,MAAM,OACP,MAAM,QAAQ;AAEhB;AAEO,SAAS,uBAAuB,IAAY,WAA2B;AAC7E,SAAO,GAAG,WAAW,GAAG,SAAS,GAAG,IAAI,KAAK,GAAG,SAAS,IAAI,EAAE;AAChE;",
   "names": []
 }

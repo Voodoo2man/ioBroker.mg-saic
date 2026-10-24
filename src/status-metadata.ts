@@ -41,6 +41,81 @@ type LocalizedStatusName = {
 };
 
 export type VehicleStatusGroup = 'driving' | 'access' | 'climate' | 'tires' | 'lighting' | 'energy' | 'general';
+export const excludedVehicleStatusFields = [
+	'steeringWheelHeatFailureReason',
+	'canBusActive',
+	'extendedData2',
+	'extendedData1',
+	'vehElecRngDsp',
+	'gpsHdop',
+	'lastKeySeen',
+] as const;
+
+export const excludedChargingSessionFields = [
+	'bmsAdpPubChrgSttnDspCmd',
+	'bmsAltngChrgCrntDspCmd',
+	'bmsChrgCtrlDspCmd',
+	'bmsChrgOptnCrntReq',
+	'bmsChrgOptnCrntReqV',
+	'bmsChrgOtptCrntReqV',
+	'bmsChrgSpRsn',
+	'bmsDsChrgSpRsn',
+	'bmsPTCHeatReqDspCmd',
+	'bmsPTCHeatResp',
+	'bmsPackCrntV',
+	'clstrElecRngToEPT',
+	'chrngAddedElecRngV',
+	'disChrgngRmnngTime',
+	'disChrgngRmnngTimeV',
+	'imcuChrgngEstdElecRng',
+	'imcuDschrgngEstdElecRng',
+	'imcuChrgngEstdElecRngV',
+	'imcuDschrgngEstdElecRngV',
+	'imcuVehElecRngV',
+] as const;
+
+export const excludedChargingStatisticsFields = ['fuelRangeElec', 'mileage'] as const;
+
+export function getChargingSettingFeedback(
+	fields: Record<string, number | string | undefined>,
+): Record<string, number | string> {
+	const feedback: Record<string, number | string> = {};
+	const currentLimit = fields.bmsAltngChrgCrntDspCmd;
+	const scheduleMode = fields.bmsReserCtrlDspCmd;
+	if (typeof currentLimit === 'number' && Number.isInteger(currentLimit) && currentLimit >= 1 && currentLimit <= 4) {
+		feedback.chargingCurrentLimit = currentLimit;
+	}
+	if (typeof scheduleMode === 'number' && Number.isInteger(scheduleMode) && [1, 2, 3].includes(scheduleMode)) {
+		feedback.chargingScheduleMode = scheduleMode;
+	}
+	const scheduleStart = getTimeValue(fields.bmsReserStHourDspCmd, fields.bmsReserStMintueDspCmd);
+	const scheduleEnd = getTimeValue(fields.bmsReserSpHourDspCmd, fields.bmsReserSpMintueDspCmd);
+	if (scheduleStart !== undefined) {
+		feedback.chargingScheduleStart = scheduleStart;
+	}
+	if (scheduleEnd !== undefined) {
+		feedback.chargingScheduleEnd = scheduleEnd;
+	}
+	const targetSoc = fields.bmsOnBdChrgTrgtSOCDspCmd;
+	if (typeof targetSoc === 'number' && Number.isInteger(targetSoc) && targetSoc >= 1 && targetSoc <= 7) {
+		feedback.chargeTargetSoc = (targetSoc + 3) * 10;
+	}
+	return feedback;
+}
+
+export function shouldApplySettingFeedback(state: ioBroker.State | null | undefined, hasPendingEdit: boolean): boolean {
+	return !hasPendingEdit && (!state || state.ack);
+}
+
+function getTimeValue(hour: number | string | undefined, minute: number | string | undefined): string | undefined {
+	if (typeof hour !== 'number' || typeof minute !== 'number') {
+		return undefined;
+	}
+	if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+		return undefined;
+	}
+	return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
 
 /**
  * Return the functional channel for a vehicle status field.
@@ -826,6 +901,7 @@ const booleanStatusFields = new Set([
 	'engineStatus',
 	'handBrake',
 	'lockStatus',
+	'mainBeamStatus',
 	'onlineStatus',
 	'passengerDoor',
 	'passengerWindow',
@@ -889,6 +965,8 @@ const statusScales: Record<string, { factor: number; precision: number }> = {
 	fuelRangeElec: { factor: 0.1, precision: 1 },
 	frontLeftTyrePressure: { factor: 0.04, precision: 2 },
 	frontRightTyrePressure: { factor: 0.04, precision: 2 },
+	gpsLatitude: { factor: 0.000001, precision: 6 },
+	gpsLongitude: { factor: 0.000001, precision: 6 },
 	mileage: { factor: 0.1, precision: 1 },
 	rearLeftTyrePressure: { factor: 0.04, precision: 2 },
 	rearRightTyrePressure: { factor: 0.04, precision: 2 },
@@ -906,6 +984,7 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	bmsPackSOCDsp: { type: 'number', role: 'value.battery', unit: '%', factor: 0.1, precision: 1 },
 	bmsPackCrnt: { type: 'number', role: 'value.current', unit: 'A', factor: -0.05, offset: 1000, precision: 2 },
 	bmsPackVol: { type: 'number', role: 'value.voltage', unit: 'V', factor: 0.25, precision: 1 },
+	bmsChrgOtptCrntReq: { type: 'number', role: 'value.current', unit: 'A', factor: 0.01, precision: 2 },
 	bmsEstdElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
 	bmsOnBdChrgTrgtSOCDspCmd: { type: 'number', role: 'value.battery', unit: '%' },
 	chrgngAddedElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
@@ -1004,12 +1083,23 @@ export function getVehicleStatusMetadata(key: string): VehicleStatusMetadata {
  * @param key SAIC status field name.
  * @param value Numeric value returned by the API.
  */
-export function normalizeVehicleStatusValue(key: string, value: number): number | boolean {
+export function normalizeVehicleStatusValue(key: string, value: number): number | boolean | undefined {
 	if (key === 'statusTime') {
 		return value * 1000;
 	}
 	if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
 		return value === 1;
+	}
+	if (key === 'gpsLatitude' || key === 'gpsLongitude') {
+		if (value === -128) {
+			return undefined;
+		}
+		const coordinate = value * statusScales[key].factor;
+		const maximum = key === 'gpsLatitude' ? 90 : 180;
+		if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
+			return undefined;
+		}
+		return Number(coordinate.toFixed(statusScales[key].precision));
 	}
 	const scale = statusScales[key];
 	return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;

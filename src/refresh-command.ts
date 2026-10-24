@@ -7,10 +7,14 @@
  */
 export function isRefreshCommand(id: string, namespace: string, state: ioBroker.State | null | undefined): boolean {
 	return (
-		id === `${namespace}.commands.refresh` &&
+		normalizeStateChangeId(id, namespace) === `${namespace}.commands.refresh` &&
 		state !== null &&
 		state !== undefined &&
 		!state.ack &&
 		state.val === true
 	);
+}
+
+export function normalizeStateChangeId(id: string, namespace: string): string {
+	return id.startsWith(`${namespace}.`) ? id : `${namespace}.${id}`;
 }

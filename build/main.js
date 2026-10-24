@@ -26,6 +26,7 @@ var import_config = require("./config");
 var import_saic_client = require("./saic-client");
 var import_regions = require("./regions");
 var import_refresh_command = require("./refresh-command");
+var import_pending_setting_edits = require("./pending-setting-edits");
 var import_status_metadata = require("./status-metadata");
 var import_runtime_translations = require("./runtime-translations");
 const chargingGroups = [
@@ -97,6 +98,12 @@ const settingActions = [
   { id: "chargingScheduleApply" },
   { id: "batteryHeatingScheduleApply" }
 ];
+const settingInputsByAction = {
+  climateTemperatureApply: ["climateTemperature"],
+  chargingSettingsApply: ["chargeTargetSoc", "chargingCurrentLimit"],
+  chargingScheduleApply: ["chargingScheduleStart", "chargingScheduleEnd", "chargingScheduleMode"],
+  batteryHeatingScheduleApply: ["batteryHeatingScheduleEnabled", "batteryHeatingScheduleStart"]
+};
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 class MgSaic extends utils.Adapter {
   constructor(options = {}) {
@@ -122,6 +129,9 @@ class MgSaic extends utils.Adapter {
   lastStatusTimes = /* @__PURE__ */ new Map();
   lastCanonicalStatusTimes = /* @__PURE__ */ new Map();
   vehicleCommandsInProgress = /* @__PURE__ */ new Set();
+  pendingSettingEdits = /* @__PURE__ */ new Map();
+  pendingSettingEditsWrite = Promise.resolve();
+  settingEditSequence = 0;
   async onReady() {
     var _a, _b, _c, _d, _e;
     if (this.stopping) {
@@ -132,6 +142,16 @@ class MgSaic extends utils.Adapter {
     await this.extendObjectAsync("info.backend", { common: { name: (0, import_runtime_translations.getRuntimeName)("backend") } });
     await this.extendObjectAsync("info.connection", { common: { name: (0, import_runtime_translations.getRuntimeName)("connection") } });
     await this.extendObjectAsync("info.lastError", { common: { name: (0, import_runtime_translations.getRuntimeName)("lastError") } });
+    await this.setObjectNotExistsAsync("internal", {
+      type: "channel",
+      common: { name: "Internal" },
+      native: {}
+    });
+    await this.setObjectNotExistsAsync("internal.pendingSettingEdits", {
+      type: "state",
+      common: { name: "Pending setting edits", type: "string", role: "json", read: true, write: false },
+      native: {}
+    });
     await this.setObjectNotExistsAsync("commands", {
       type: "channel",
       common: { name: (0, import_runtime_translations.getRuntimeName)("commands") },
@@ -230,6 +250,7 @@ class MgSaic extends utils.Adapter {
         }
         await this.delObjectAsync(`vehicles.${vehicle.vin}.canonicalStatus`, { recursive: true });
       }
+      await this.restorePendingSettingEdits();
       await this.setState("info.connection", true, true);
       this.log.info(`SAIC account authenticated; discovered ${this.vehicles.length} vehicle(s).`);
       if (this.vehicles.length === 0) {
@@ -470,6 +491,7 @@ class MgSaic extends utils.Adapter {
     if (this.stopping) {
       return;
     }
+    const eventId = (0, import_refresh_command.normalizeStateChangeId)(id, this.namespace);
     if ((0, import_refresh_command.isRefreshCommand)(id, this.namespace, state)) {
       void this.setStateAsync("commands.refresh", { val: false, ack: true }).catch((error) => {
         const details = error instanceof Error ? error.message : "Unknown state error";
@@ -482,10 +504,10 @@ class MgSaic extends utils.Adapter {
       return;
     }
     const settingAction = settingActions.find(
-      ({ id: actionId }) => this.vehicles.some(({ vin }) => id === `${this.namespace}.${vehicleCommandPath(vin, actionId)}`)
+      ({ id: actionId }) => this.vehicles.some(({ vin }) => eventId === `${this.namespace}.${vehicleCommandPath(vin, actionId)}`)
     );
     const settingVehicle = this.vehicles.find(
-      ({ vin }) => settingAction && id === `${this.namespace}.${vehicleCommandPath(vin, settingAction.id)}`
+      ({ vin }) => settingAction && eventId === `${this.namespace}.${vehicleCommandPath(vin, settingAction.id)}`
     );
     if (settingAction && settingVehicle) {
       void this.executeVehicleSetting(settingVehicle.vin, settingAction.id);
@@ -493,17 +515,16 @@ class MgSaic extends utils.Adapter {
     }
     const settingInput = this.vehicles.flatMap(
       ({ vin }) => Object.keys(settingGroups).filter((stateId) => stateId !== "driverSeatHeatLevel" && stateId !== "passengerSeatHeatLevel").map((stateId) => ({ vin, stateId }))
-    ).find(({ vin, stateId }) => id === `${this.namespace}.${vehicleCommandPath(vin, stateId)}`);
+    ).find(({ vin, stateId }) => eventId === `${this.namespace}.${vehicleCommandPath(vin, stateId)}`);
     if (settingInput) {
-      void this.setStateAsync(vehicleCommandPath(settingInput.vin, settingInput.stateId), {
-        val: state.val,
-        ack: true
-      });
+      const stateId = vehicleCommandPath(settingInput.vin, settingInput.stateId);
+      this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
+      void this.acknowledgeSettingEdit(stateId, state.val);
       return;
     }
     const seatHeating = this.vehicles.flatMap(
       ({ vin }) => ["driverSeatHeatLevel", "passengerSeatHeatLevel"].map((stateId) => ({ vin, stateId }))
-    ).find(({ vin, stateId }) => id === `${this.namespace}.${vehicleCommandPath(vin, stateId)}`);
+    ).find(({ vin, stateId }) => eventId === `${this.namespace}.${vehicleCommandPath(vin, stateId)}`);
     if (seatHeating) {
       const seat = seatHeating.stateId === "driverSeatHeatLevel" ? "driver" : "passenger";
       void this.executeSeatHeating(seatHeating.vin, seat, state.val);
@@ -513,15 +534,50 @@ class MgSaic extends utils.Adapter {
       return;
     }
     const commandEntry = vehicleCommands.find(
-      ({ id: commandId }) => this.vehicles.some(({ vin }) => id === `${this.namespace}.${vehicleCommandPath(vin, commandId)}`)
+      ({ id: commandId }) => this.vehicles.some(({ vin }) => eventId === `${this.namespace}.${vehicleCommandPath(vin, commandId)}`)
     );
     const vehicle = this.vehicles.find(
-      ({ vin }) => commandEntry && id === `${this.namespace}.${vehicleCommandPath(vin, commandEntry.id)}`
+      ({ vin }) => commandEntry && eventId === `${this.namespace}.${vehicleCommandPath(vin, commandEntry.id)}`
     );
     if (!commandEntry || !vehicle) {
       return;
     }
     void this.executeVehicleCommand(vehicle.vin, commandEntry.id);
+  }
+  async acknowledgeSettingEdit(stateId, value) {
+    try {
+      await this.persistPendingSettingEdits();
+      await this.setStateAsync(stateId, { val: value, ack: true });
+    } catch (error) {
+      const details = error instanceof Error ? error.message : "Unknown state error";
+      this.log.error(`Could not persist pending setting ${stateId}: ${details}`);
+    }
+  }
+  async persistPendingSettingEdits() {
+    const serialized = (0, import_pending_setting_edits.serializePendingSettingEdits)(this.pendingSettingEdits.keys());
+    const write = this.pendingSettingEditsWrite.catch(() => void 0).then(async () => {
+      await this.setStateAsync("internal.pendingSettingEdits", { val: serialized, ack: true });
+    });
+    this.pendingSettingEditsWrite = write;
+    await write;
+  }
+  async restorePendingSettingEdits() {
+    const validStateIds = new Set(
+      this.vehicles.flatMap(
+        ({ vin }) => Object.keys(settingGroups).filter((stateId) => stateId !== "driverSeatHeatLevel" && stateId !== "passengerSeatHeatLevel").map((stateId) => vehicleCommandPath(vin, stateId))
+      )
+    );
+    const savedState = await this.getStateAsync("internal.pendingSettingEdits");
+    for (const stateId of (0, import_pending_setting_edits.parsePendingSettingEdits)(savedState == null ? void 0 : savedState.val, validStateIds)) {
+      this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
+    }
+    for (const stateId of validStateIds) {
+      const currentState = await this.getStateAsync(stateId);
+      if (currentState && !currentState.ack && !this.pendingSettingEdits.has(stateId)) {
+        this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
+      }
+    }
+    await this.persistPendingSettingEdits();
   }
   async executeSeatHeating(vin, seat, value) {
     const stateId = vehicleCommandPath(vin, `${seat}SeatHeatLevel`);
@@ -565,6 +621,9 @@ class MgSaic extends utils.Adapter {
   }
   async executeVehicleSetting(vin, action) {
     const stateId = vehicleCommandPath(vin, action);
+    const editVersions = new Map(
+      settingInputsByAction[action].map((settingId) => vehicleCommandPath(vin, settingId)).filter((settingId) => this.pendingSettingEdits.has(settingId)).map((settingId) => [settingId, this.pendingSettingEdits.get(settingId)])
+    );
     if (this.vehicleCommandsInProgress.has(vin)) {
       await this.setStateAsync(stateId, { val: false, ack: true });
       this.log.warn(`Ignored ${action} for ${vin}: another vehicle command is still running`);
@@ -587,6 +646,26 @@ class MgSaic extends utils.Adapter {
         setting,
         this.abortController.signal
       );
+      const clearedEdits = [];
+      for (const [settingId, version] of editVersions) {
+        if (this.pendingSettingEdits.get(settingId) === version) {
+          this.pendingSettingEdits.delete(settingId);
+          clearedEdits.push([settingId, version]);
+        }
+      }
+      try {
+        await this.persistPendingSettingEdits();
+      } catch (error) {
+        for (const [settingId, version] of clearedEdits) {
+          if (!this.pendingSettingEdits.has(settingId)) {
+            this.pendingSettingEdits.set(settingId, version);
+          }
+        }
+        const details = error instanceof Error ? error.message : "Unknown state error";
+        this.log.warn(
+          `SAIC ${action} completed for ${vin}, but pending edits could not be persisted: ${details}`
+        );
+      }
       this.log.info(`SAIC ${action} completed for ${vin}`);
     } catch (error) {
       if (!this.stopping) {
@@ -685,6 +764,10 @@ class MgSaic extends utils.Adapter {
       return;
     }
     const statusId = `vehicles.${vin}.${channel}`;
+    for (const key of import_status_metadata.excludedVehicleStatusFields) {
+      const stateId = `${statusId}.${(0, import_status_metadata.getVehicleStatusGroup)(key)}.${key}`;
+      await this.delObjectAsync(stateId);
+    }
     await this.setObjectNotExistsAsync(statusId, {
       type: "channel",
       common: { name: (0, import_runtime_translations.getRuntimeName)(channelName) },
@@ -706,6 +789,10 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
+      if (import_status_metadata.excludedVehicleStatusFields.some((excludedKey) => excludedKey === key)) {
+        await this.delObjectAsync(`${statusId}.${(0, import_status_metadata.getVehicleStatusGroup)(key)}.${key}`);
+        continue;
+      }
       const group = (0, import_status_metadata.getVehicleStatusGroup)(key);
       const groupId = `${statusId}.${group}`;
       const stateId = `${groupId}.${key}`;
@@ -718,6 +805,11 @@ class MgSaic extends utils.Adapter {
             await this.delObjectAsync(stateId);
           }
         }
+        continue;
+      }
+      const normalizedValue = (0, import_status_metadata.normalizeVehicleStatusValue)(key, value);
+      if (normalizedValue === void 0) {
+        await this.delObjectAsync(stateId);
         continue;
       }
       await this.setObjectNotExistsAsync(groupId, {
@@ -754,9 +846,17 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
-      await this.setStateAsync(stateId, { val: (0, import_status_metadata.normalizeVehicleStatusValue)(key, value), ack: true });
+      await this.setStateAsync(stateId, { val: normalizedValue, ack: true });
       if (this.stopping) {
         return;
+      }
+      const seatSetting = key === "frontLeftSeatHeatLevel" ? "driverSeatHeatLevel" : key === "frontRightSeatHeatLevel" ? "passengerSeatHeatLevel" : void 0;
+      if (seatSetting && Number.isInteger(value) && value >= 0 && value <= 3) {
+        const settingId = vehicleCommandPath(vin, seatSetting);
+        const settingState = await this.getStateAsync(settingId);
+        if (!settingState || settingState.ack) {
+          await this.setStateAsync(settingId, { val: value, ack: true });
+        }
       }
       await this.delObjectAsync(`${statusId}.${key}`);
     }
@@ -766,9 +866,17 @@ class MgSaic extends utils.Adapter {
     const rootId = `vehicles.${vin}.status.charging`;
     for (const { source, id } of chargingGroups) {
       const groupId = `${rootId}.${id}`;
+      const excludedFields = id === "session" ? import_status_metadata.excludedChargingSessionFields : import_status_metadata.excludedChargingStatisticsFields;
+      for (const field of excludedFields) {
+        await this.delObjectAsync(`${groupId}.${field}`);
+      }
       for (const [field, value] of Object.entries(charging[source])) {
         if (this.stopping) {
           return;
+        }
+        if (excludedFields.some((excludedField) => excludedField === field)) {
+          await this.delObjectAsync(`${groupId}.${field}`);
+          continue;
         }
         const stateId = `${groupId}.${field}`;
         if (value === void 0) {
@@ -792,6 +900,23 @@ class MgSaic extends utils.Adapter {
           val: (0, import_status_metadata.normalizeChargingValue)(field, value),
           ack: true
         });
+        if (field === "bmsOnBdChrgTrgtSOCDspCmd" && typeof value === "number" && value >= 1 && value <= 7) {
+          const targetSocId = vehicleCommandPath(vin, "chargeTargetSoc");
+          const targetSocState = await this.getStateAsync(targetSocId);
+          if ((0, import_status_metadata.shouldApplySettingFeedback)(targetSocState, this.pendingSettingEdits.has(targetSocId))) {
+            await this.setStateAsync(targetSocId, {
+              val: (0, import_status_metadata.normalizeChargingValue)(field, value),
+              ack: true
+            });
+          }
+        }
+      }
+    }
+    for (const [setting, value] of Object.entries((0, import_status_metadata.getChargingSettingFeedback)(charging.chrgMgmtData))) {
+      const stateId = vehicleCommandPath(vin, setting);
+      const state = await this.getStateAsync(stateId);
+      if ((0, import_status_metadata.shouldApplySettingFeedback)(state, this.pendingSettingEdits.has(stateId))) {
+        await this.setStateAsync(stateId, { val: value, ack: true });
       }
     }
     await this.delObjectAsync(`vehicles.${vin}.charging`, { recursive: true });

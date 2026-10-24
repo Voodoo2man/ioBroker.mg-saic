@@ -18,15 +18,88 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var status_metadata_exports = {};
 __export(status_metadata_exports, {
+  excludedChargingSessionFields: () => excludedChargingSessionFields,
+  excludedChargingStatisticsFields: () => excludedChargingStatisticsFields,
+  excludedVehicleStatusFields: () => excludedVehicleStatusFields,
   getChargingFieldMetadata: () => getChargingFieldMetadata,
+  getChargingSettingFeedback: () => getChargingSettingFeedback,
   getVehicleStatusGroup: () => getVehicleStatusGroup,
   getVehicleStatusMetadata: () => getVehicleStatusMetadata,
   normalizeChargingValue: () => normalizeChargingValue,
   normalizeVehicleStatusValue: () => normalizeVehicleStatusValue,
   resolveOdometerValue: () => resolveOdometerValue,
+  shouldApplySettingFeedback: () => shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue: () => shouldDeleteUnavailableStatusValue
 });
 module.exports = __toCommonJS(status_metadata_exports);
+const excludedVehicleStatusFields = [
+  "steeringWheelHeatFailureReason",
+  "canBusActive",
+  "extendedData2",
+  "extendedData1",
+  "vehElecRngDsp",
+  "gpsHdop",
+  "lastKeySeen"
+];
+const excludedChargingSessionFields = [
+  "bmsAdpPubChrgSttnDspCmd",
+  "bmsAltngChrgCrntDspCmd",
+  "bmsChrgCtrlDspCmd",
+  "bmsChrgOptnCrntReq",
+  "bmsChrgOptnCrntReqV",
+  "bmsChrgOtptCrntReqV",
+  "bmsChrgSpRsn",
+  "bmsDsChrgSpRsn",
+  "bmsPTCHeatReqDspCmd",
+  "bmsPTCHeatResp",
+  "bmsPackCrntV",
+  "clstrElecRngToEPT",
+  "chrngAddedElecRngV",
+  "disChrgngRmnngTime",
+  "disChrgngRmnngTimeV",
+  "imcuChrgngEstdElecRng",
+  "imcuDschrgngEstdElecRng",
+  "imcuChrgngEstdElecRngV",
+  "imcuDschrgngEstdElecRngV",
+  "imcuVehElecRngV"
+];
+const excludedChargingStatisticsFields = ["fuelRangeElec", "mileage"];
+function getChargingSettingFeedback(fields) {
+  const feedback = {};
+  const currentLimit = fields.bmsAltngChrgCrntDspCmd;
+  const scheduleMode = fields.bmsReserCtrlDspCmd;
+  if (typeof currentLimit === "number" && Number.isInteger(currentLimit) && currentLimit >= 1 && currentLimit <= 4) {
+    feedback.chargingCurrentLimit = currentLimit;
+  }
+  if (typeof scheduleMode === "number" && Number.isInteger(scheduleMode) && [1, 2, 3].includes(scheduleMode)) {
+    feedback.chargingScheduleMode = scheduleMode;
+  }
+  const scheduleStart = getTimeValue(fields.bmsReserStHourDspCmd, fields.bmsReserStMintueDspCmd);
+  const scheduleEnd = getTimeValue(fields.bmsReserSpHourDspCmd, fields.bmsReserSpMintueDspCmd);
+  if (scheduleStart !== void 0) {
+    feedback.chargingScheduleStart = scheduleStart;
+  }
+  if (scheduleEnd !== void 0) {
+    feedback.chargingScheduleEnd = scheduleEnd;
+  }
+  const targetSoc = fields.bmsOnBdChrgTrgtSOCDspCmd;
+  if (typeof targetSoc === "number" && Number.isInteger(targetSoc) && targetSoc >= 1 && targetSoc <= 7) {
+    feedback.chargeTargetSoc = (targetSoc + 3) * 10;
+  }
+  return feedback;
+}
+function shouldApplySettingFeedback(state, hasPendingEdit) {
+  return !hasPendingEdit && (!state || state.ack);
+}
+function getTimeValue(hour, minute) {
+  if (typeof hour !== "number" || typeof minute !== "number") {
+    return void 0;
+  }
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+    return void 0;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
 function getVehicleStatusGroup(key) {
   if (["currentJourneyDistance", "engineStatus", "handBrake", "mileage", "speed"].includes(key)) {
     return "driving";
@@ -801,6 +874,7 @@ const booleanStatusFields = /* @__PURE__ */ new Set([
   "engineStatus",
   "handBrake",
   "lockStatus",
+  "mainBeamStatus",
   "onlineStatus",
   "passengerDoor",
   "passengerWindow",
@@ -861,6 +935,8 @@ const statusScales = {
   fuelRangeElec: { factor: 0.1, precision: 1 },
   frontLeftTyrePressure: { factor: 0.04, precision: 2 },
   frontRightTyrePressure: { factor: 0.04, precision: 2 },
+  gpsLatitude: { factor: 1e-6, precision: 6 },
+  gpsLongitude: { factor: 1e-6, precision: 6 },
   mileage: { factor: 0.1, precision: 1 },
   rearLeftTyrePressure: { factor: 0.04, precision: 2 },
   rearRightTyrePressure: { factor: 0.04, precision: 2 },
@@ -876,6 +952,7 @@ const chargingFieldMetadata = {
   bmsPackSOCDsp: { type: "number", role: "value.battery", unit: "%", factor: 0.1, precision: 1 },
   bmsPackCrnt: { type: "number", role: "value.current", unit: "A", factor: -0.05, offset: 1e3, precision: 2 },
   bmsPackVol: { type: "number", role: "value.voltage", unit: "V", factor: 0.25, precision: 1 },
+  bmsChrgOtptCrntReq: { type: "number", role: "value.current", unit: "A", factor: 0.01, precision: 2 },
   bmsEstdElecRng: { type: "number", role: "value.distance", unit: "km" },
   bmsOnBdChrgTrgtSOCDspCmd: { type: "number", role: "value.battery", unit: "%" },
   chrgngAddedElecRng: { type: "number", role: "value.distance", unit: "km" },
@@ -956,6 +1033,17 @@ function normalizeVehicleStatusValue(key, value) {
   if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
     return value === 1;
   }
+  if (key === "gpsLatitude" || key === "gpsLongitude") {
+    if (value === -128) {
+      return void 0;
+    }
+    const coordinate = value * statusScales[key].factor;
+    const maximum = key === "gpsLatitude" ? 90 : 180;
+    if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
+      return void 0;
+    }
+    return Number(coordinate.toFixed(statusScales[key].precision));
+  }
   const scale = statusScales[key];
   return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;
 }
@@ -967,12 +1055,17 @@ function resolveOdometerValue(liveValue, cachedValue) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  excludedChargingSessionFields,
+  excludedChargingStatisticsFields,
+  excludedVehicleStatusFields,
   getChargingFieldMetadata,
+  getChargingSettingFeedback,
   getVehicleStatusGroup,
   getVehicleStatusMetadata,
   normalizeChargingValue,
   normalizeVehicleStatusValue,
   resolveOdometerValue,
+  shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue
 });
 //# sourceMappingURL=status-metadata.js.map
