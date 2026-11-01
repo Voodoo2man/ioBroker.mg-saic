@@ -18,10 +18,12 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var status_metadata_exports = {};
 __export(status_metadata_exports, {
+  calculateRealtimePower: () => calculateRealtimePower,
   excludedChargingSessionFields: () => excludedChargingSessionFields,
   excludedChargingStatisticsFields: () => excludedChargingStatisticsFields,
   excludedVehicleStatusFields: () => excludedVehicleStatusFields,
   getChargingFieldMetadata: () => getChargingFieldMetadata,
+  getChargingManagementFields: () => getChargingManagementFields,
   getChargingSettingFeedback: () => getChargingSettingFeedback,
   getVehicleStatusGroup: () => getVehicleStatusGroup,
   getVehicleStatusMetadata: () => getVehicleStatusMetadata,
@@ -952,7 +954,7 @@ const chargingFieldMetadata = {
   bmsPackSOCDsp: { type: "number", role: "value.battery", unit: "%", factor: 0.1, precision: 1 },
   bmsPackCrnt: { type: "number", role: "value.current", unit: "A", factor: -0.05, offset: 1e3, precision: 2 },
   bmsPackVol: { type: "number", role: "value.voltage", unit: "V", factor: 0.25, precision: 1 },
-  bmsChrgOtptCrntReq: { type: "number", role: "value.current", unit: "A", factor: 0.01, precision: 2 },
+  bmsChrgOtptCrntReq: { type: "number", role: "value" },
   bmsEstdElecRng: { type: "number", role: "value.distance", unit: "km" },
   bmsOnBdChrgTrgtSOCDspCmd: { type: "number", role: "value.battery", unit: "%" },
   chrgngAddedElecRng: { type: "number", role: "value.distance", unit: "km" },
@@ -962,8 +964,8 @@ const chargingFieldMetadata = {
   imcuChrgngEstdElecRng: { type: "number", role: "value.distance", unit: "km" },
   imcuDschrgngEstdElecRng: { type: "number", role: "value.distance", unit: "km" },
   imcuVehElecRng: { type: "number", role: "value.distance", unit: "km" },
-  onBdChrgrAltrCrntInptCrnt: { type: "number", role: "value.current", unit: "A" },
-  onBdChrgrAltrCrntInptVol: { type: "number", role: "value.voltage", unit: "V" },
+  onBdChrgrAltrCrntInptCrnt: { type: "number", role: "value" },
+  onBdChrgrAltrCrntInptVol: { type: "number", role: "value" },
   chargingDuration: { type: "number", role: "value.interval", unit: "min", factor: 1 / 60, precision: 1 },
   endTime: { type: "number", role: "date", factor: 1e3 },
   fuelRangeElec: { type: "number", role: "value.distance", unit: "km", factor: 0.1, precision: 1 },
@@ -973,22 +975,35 @@ const chargingFieldMetadata = {
   mileageSinceLastCharge: { type: "number", role: "value.distance", unit: "km", factor: 0.1, precision: 1 },
   powerUsageOfDay: { type: "number", role: "value.energy", unit: "kWh", factor: 0.1, precision: 1 },
   powerUsageSinceLastCharge: { type: "number", role: "value.energy", unit: "kWh", factor: 0.1, precision: 1 },
-  realtimePower: { type: "number", role: "value.energy", unit: "kWh", factor: 0.1, precision: 1 },
+  realtimePower: { type: "number", role: "value.power", unit: "kW", precision: 2 },
   startTime: { type: "number", role: "date", factor: 1e3 },
   totalBatteryCapacity: { type: "number", role: "value.energy", unit: "kWh", factor: 0.1, precision: 1 },
   workingCurrent: { type: "number", role: "value.current", unit: "A", factor: 0.01, precision: 2 },
   workingVoltage: { type: "number", role: "value.voltage", unit: "V", factor: 0.01, precision: 2 }
 };
-function getChargingFieldMetadata(key) {
-  var _a;
+function getChargingFieldMetadata(key, series) {
+  var _a, _b;
   if (chargingBooleanFields.has(key)) {
     return { type: "boolean", role: key === "ccuEleccLckCtrlDspCmd" ? "indicator" : "sensor" };
   }
-  return (_a = chargingFieldMetadata[key]) != null ? _a : { type: "number", role: "value" };
+  const profile = (_a = series == null ? void 0 : series.toUpperCase()) != null ? _a : "";
+  if (key === "onBdChrgrAltrCrntInptCrnt" && /EH32|MIS3E/.test(profile)) {
+    return { type: "number", role: "value.current", unit: "A", factor: 0.2, precision: 2 };
+  }
+  if (key === "onBdChrgrAltrCrntInptVol" && /EH32|MIS3E/.test(profile)) {
+    return { type: "number", role: "value.voltage", unit: "V", factor: 2, precision: 1 };
+  }
+  if (key === "bmsChrgOtptCrntReq" && profile.includes("MIS3E")) {
+    return { type: "number", role: "value.current", unit: "A", factor: 0.05, precision: 2 };
+  }
+  if (["lastChargeEndingPower", "powerUsageSinceLastCharge"].includes(key) && profile.includes("AS33P")) {
+    return { type: "number", role: "value.energy", unit: "kWh", factor: 1 / 30, precision: 2 };
+  }
+  return (_b = chargingFieldMetadata[key]) != null ? _b : { type: "number", role: "value" };
 }
-function normalizeChargingValue(key, value) {
+function normalizeChargingValue(key, value, series) {
   var _a;
-  const metadata = getChargingFieldMetadata(key);
+  const metadata = getChargingFieldMetadata(key, series);
   if (metadata.type === "boolean") {
     return value === 1 || value === "1";
   }
@@ -1000,6 +1015,21 @@ function normalizeChargingValue(key, value) {
   }
   const normalized = value * metadata.factor + ((_a = metadata.offset) != null ? _a : 0);
   return metadata.precision === void 0 ? normalized : Number(normalized.toFixed(metadata.precision));
+}
+function calculateRealtimePower(rawCurrent, rawVoltage) {
+  if (typeof rawCurrent !== "number" || !Number.isFinite(rawCurrent) || rawCurrent === -128 || typeof rawVoltage !== "number" || !Number.isFinite(rawVoltage) || rawVoltage === -128) {
+    return void 0;
+  }
+  const currentAmps = rawCurrent * -0.05 + 1e3;
+  const voltageVolts = rawVoltage * 0.25;
+  return Number((currentAmps * voltageVolts / 1e3).toFixed(2));
+}
+function getChargingManagementFields(fields) {
+  const entries = Object.entries(fields);
+  if (!Object.hasOwn(fields, "realtimePower")) {
+    entries.push(["realtimePower", 0]);
+  }
+  return entries;
 }
 function getVehicleStatusMetadata(key) {
   var _a, _b;
@@ -1055,10 +1085,12 @@ function resolveOdometerValue(liveValue, cachedValue) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  calculateRealtimePower,
   excludedChargingSessionFields,
   excludedChargingStatisticsFields,
   excludedVehicleStatusFields,
   getChargingFieldMetadata,
+  getChargingManagementFields,
   getChargingSettingFeedback,
   getVehicleStatusGroup,
   getVehicleStatusMetadata,

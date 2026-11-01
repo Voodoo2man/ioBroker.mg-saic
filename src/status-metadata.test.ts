@@ -7,6 +7,8 @@ import {
 	excludedChargingStatisticsFields,
 	excludedVehicleStatusFields,
 	getChargingFieldMetadata,
+	getChargingManagementFields,
+	calculateRealtimePower,
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
 	resolveOdometerValue,
@@ -44,11 +46,11 @@ describe('getVehicleStatusMetadata', () => {
 	});
 
 	it('assigns engineering roles and units to known charging measurements', () => {
-		expect(getChargingFieldMetadata('bmsChrgOtptCrntReq')).to.include({
-			type: 'number',
+		expect(getChargingFieldMetadata('bmsChrgOtptCrntReq')).to.deep.equal({ type: 'number', role: 'value' });
+		expect(getChargingFieldMetadata('bmsChrgOtptCrntReq', 'MIS3E')).to.include({
 			role: 'value.current',
 			unit: 'A',
-			factor: 0.01,
+			factor: 0.05,
 		});
 		expect(getChargingFieldMetadata('bmsPackSOCDsp')).to.include({
 			type: 'number',
@@ -67,13 +69,17 @@ describe('getVehicleStatusMetadata', () => {
 			role: 'value.interval',
 			unit: 'min',
 		});
-		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptCrnt')).to.include({
+		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptCrnt')).to.deep.equal({ type: 'number', role: 'value' });
+		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptCrnt', 'MG EH32')).to.include({
 			role: 'value.current',
 			unit: 'A',
+			factor: 0.2,
 		});
-		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptVol')).to.include({
+		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptVol')).to.deep.equal({ type: 'number', role: 'value' });
+		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptVol', 'MIS3E')).to.include({
 			role: 'value.voltage',
 			unit: 'V',
+			factor: 2,
 		});
 		expect(getChargingFieldMetadata('workingCurrent')).to.include({ role: 'value.current', unit: 'A' });
 		expect(getChargingFieldMetadata('workingVoltage')).to.include({ role: 'value.voltage', unit: 'V' });
@@ -82,8 +88,9 @@ describe('getVehicleStatusMetadata', () => {
 			unit: 'kWh',
 		});
 		expect(getChargingFieldMetadata('realtimePower')).to.include({
-			role: 'value.energy',
-			unit: 'kWh',
+			type: 'number',
+			role: 'value.power',
+			unit: 'kW',
 		});
 		expect(getChargingFieldMetadata('lastChargeEndingPower')).to.include({
 			role: 'value.energy',
@@ -93,20 +100,41 @@ describe('getVehicleStatusMetadata', () => {
 	});
 
 	it('converts scaled and encoded charging values before publishing units', () => {
-		expect(normalizeChargingValue('bmsChrgOtptCrntReq', 1234)).to.equal(12.34);
+		expect(normalizeChargingValue('bmsChrgOtptCrntReq', 1234)).to.equal(1234);
+		expect(normalizeChargingValue('bmsChrgOtptCrntReq', 1234, 'MIS3E')).to.equal(61.7);
+		expect(normalizeChargingValue('bmsChrgOtptCrntReq', 1234, 'EH32')).to.equal(1234);
 		expect(normalizeChargingValue('bmsPackSOCDsp', 831)).to.equal(83.1);
 		expect(normalizeChargingValue('bmsOnBdChrgTrgtSOCDspCmd', 7)).to.equal(100);
 		expect(normalizeChargingValue('bmsOnBdChrgTrgtSOCDspCmd', 5)).to.equal(80);
 		expect(normalizeChargingValue('bmsPackVol', 1707)).to.equal(426.8);
 		expect(normalizeChargingValue('bmsPackCrnt', 19800)).to.equal(10);
 		expect(normalizeChargingValue('chargingDuration', 3600)).to.equal(60);
-		expect(normalizeChargingValue('realtimePower', 725)).to.equal(72.5);
+		expect(calculateRealtimePower(19800, 1707)).to.equal(4.27);
+		expect(calculateRealtimePower(19665, 1550)).to.equal(6.49);
+		expect(calculateRealtimePower(undefined, 1707)).to.equal(undefined);
+		expect(calculateRealtimePower(19800, -128)).to.equal(undefined);
 		expect(normalizeChargingValue('lastChargeEndingPower', 725)).to.equal(72.5);
+		expect(normalizeChargingValue('lastChargeEndingPower', 725, 'AS33P')).to.equal(24.17);
+		expect(normalizeChargingValue('powerUsageSinceLastCharge', 725, 'AS33P')).to.equal(24.17);
+		expect(normalizeChargingValue('powerUsageSinceLastCharge', 725, 'EH32')).to.equal(72.5);
+		expect(normalizeChargingValue('onBdChrgrAltrCrntInptCrnt', 100, 'EH32')).to.equal(20);
+		expect(normalizeChargingValue('onBdChrgrAltrCrntInptVol', 100, 'MIS3E')).to.equal(200);
+		expect(normalizeChargingValue('onBdChrgrAltrCrntInptCrnt', 100)).to.equal(100);
+		expect(normalizeChargingValue('onBdChrgrAltrCrntInptVol', 100, 'unknown')).to.equal(100);
 		expect(normalizeChargingValue('workingCurrent', 20003)).to.equal(200.03);
 		expect(normalizeChargingValue('workingVoltage', 1776)).to.equal(17.76);
 		expect(normalizeChargingValue('chargingGunState', 1)).to.equal(true);
 		expect(normalizeChargingValue('unscaledField', 42)).to.equal(42);
 		expect(normalizeChargingValue('bmsPackSOCDsp', -128)).to.equal(-128);
+	});
+
+	it('includes calculated realtimePower when the raw field is absent', () => {
+		expect(getChargingManagementFields({ bmsPackCrnt: 19800, bmsPackVol: 1707 })).to.deep.equal([
+			['bmsPackCrnt', 19800],
+			['bmsPackVol', 1707],
+			['realtimePower', 0],
+		]);
+		expect(getChargingManagementFields({ realtimePower: 271 })).to.deep.equal([['realtimePower', 271]]);
 	});
 
 	it('groups status datapoints by vehicle function', () => {

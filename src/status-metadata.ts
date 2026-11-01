@@ -995,7 +995,7 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	bmsPackSOCDsp: { type: 'number', role: 'value.battery', unit: '%', factor: 0.1, precision: 1 },
 	bmsPackCrnt: { type: 'number', role: 'value.current', unit: 'A', factor: -0.05, offset: 1000, precision: 2 },
 	bmsPackVol: { type: 'number', role: 'value.voltage', unit: 'V', factor: 0.25, precision: 1 },
-	bmsChrgOtptCrntReq: { type: 'number', role: 'value.current', unit: 'A', factor: 0.01, precision: 2 },
+	bmsChrgOtptCrntReq: { type: 'number', role: 'value' },
 	bmsEstdElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
 	bmsOnBdChrgTrgtSOCDspCmd: { type: 'number', role: 'value.battery', unit: '%' },
 	chrgngAddedElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
@@ -1005,8 +1005,8 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	imcuChrgngEstdElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
 	imcuDschrgngEstdElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
 	imcuVehElecRng: { type: 'number', role: 'value.distance', unit: 'km' },
-	onBdChrgrAltrCrntInptCrnt: { type: 'number', role: 'value.current', unit: 'A' },
-	onBdChrgrAltrCrntInptVol: { type: 'number', role: 'value.voltage', unit: 'V' },
+	onBdChrgrAltrCrntInptCrnt: { type: 'number', role: 'value' },
+	onBdChrgrAltrCrntInptVol: { type: 'number', role: 'value' },
 	chargingDuration: { type: 'number', role: 'value.interval', unit: 'min', factor: 1 / 60, precision: 1 },
 	endTime: { type: 'number', role: 'date', factor: 1000 },
 	fuelRangeElec: { type: 'number', role: 'value.distance', unit: 'km', factor: 0.1, precision: 1 },
@@ -1016,7 +1016,7 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	mileageSinceLastCharge: { type: 'number', role: 'value.distance', unit: 'km', factor: 0.1, precision: 1 },
 	powerUsageOfDay: { type: 'number', role: 'value.energy', unit: 'kWh', factor: 0.1, precision: 1 },
 	powerUsageSinceLastCharge: { type: 'number', role: 'value.energy', unit: 'kWh', factor: 0.1, precision: 1 },
-	realtimePower: { type: 'number', role: 'value.energy', unit: 'kWh', factor: 0.1, precision: 1 },
+	realtimePower: { type: 'number', role: 'value.power', unit: 'kW', precision: 2 },
 	startTime: { type: 'number', role: 'date', factor: 1000 },
 	totalBatteryCapacity: { type: 'number', role: 'value.energy', unit: 'kWh', factor: 0.1, precision: 1 },
 	workingCurrent: { type: 'number', role: 'value.current', unit: 'A', factor: 0.01, precision: 2 },
@@ -1027,10 +1027,24 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
  * Return known semantics and engineering units for a raw charging field.
  *
  * @param key SAIC charging field name.
+ * @param series SAIC vehicle series, when known.
  */
-export function getChargingFieldMetadata(key: string): ChargingFieldMetadata {
+export function getChargingFieldMetadata(key: string, series?: string): ChargingFieldMetadata {
 	if (chargingBooleanFields.has(key)) {
 		return { type: 'boolean', role: key === 'ccuEleccLckCtrlDspCmd' ? 'indicator' : 'sensor' };
+	}
+	const profile = series?.toUpperCase() ?? '';
+	if (key === 'onBdChrgrAltrCrntInptCrnt' && /EH32|MIS3E/.test(profile)) {
+		return { type: 'number', role: 'value.current', unit: 'A', factor: 0.2, precision: 2 };
+	}
+	if (key === 'onBdChrgrAltrCrntInptVol' && /EH32|MIS3E/.test(profile)) {
+		return { type: 'number', role: 'value.voltage', unit: 'V', factor: 2, precision: 1 };
+	}
+	if (key === 'bmsChrgOtptCrntReq' && profile.includes('MIS3E')) {
+		return { type: 'number', role: 'value.current', unit: 'A', factor: 0.05, precision: 2 };
+	}
+	if (['lastChargeEndingPower', 'powerUsageSinceLastCharge'].includes(key) && profile.includes('AS33P')) {
+		return { type: 'number', role: 'value.energy', unit: 'kWh', factor: 1 / 30, precision: 2 };
 	}
 	return chargingFieldMetadata[key] ?? { type: 'number', role: 'value' };
 }
@@ -1040,9 +1054,14 @@ export function getChargingFieldMetadata(key: string): ChargingFieldMetadata {
  *
  * @param key SAIC charging field name.
  * @param value Raw field value.
+ * @param series SAIC vehicle series, when known.
  */
-export function normalizeChargingValue(key: string, value: number | string): number | string | boolean {
-	const metadata = getChargingFieldMetadata(key);
+export function normalizeChargingValue(
+	key: string,
+	value: number | string,
+	series?: string,
+): number | string | boolean {
+	const metadata = getChargingFieldMetadata(key, series);
 	if (metadata.type === 'boolean') {
 		return value === 1 || value === '1';
 	}
@@ -1054,6 +1073,46 @@ export function normalizeChargingValue(key: string, value: number | string): num
 	}
 	const normalized = value * metadata.factor + (metadata.offset ?? 0);
 	return metadata.precision === undefined ? normalized : Number(normalized.toFixed(metadata.precision));
+}
+
+/**
+ * Calculate pack-side charging power using the SAIC pack current and voltage scales.
+ *
+ * @param rawCurrent Raw bmsPackCrnt value.
+ * @param rawVoltage Raw bmsPackVol value.
+ */
+export function calculateRealtimePower(
+	rawCurrent: number | string | undefined,
+	rawVoltage: number | string | undefined,
+): number | undefined {
+	if (
+		typeof rawCurrent !== 'number' ||
+		!Number.isFinite(rawCurrent) ||
+		rawCurrent === -128 ||
+		typeof rawVoltage !== 'number' ||
+		!Number.isFinite(rawVoltage) ||
+		rawVoltage === -128
+	) {
+		return undefined;
+	}
+	const currentAmps = rawCurrent * -0.05 + 1000;
+	const voltageVolts = rawVoltage * 0.25;
+	return Number(((currentAmps * voltageVolts) / 1000).toFixed(2));
+}
+
+/**
+ * Include the derived realtimePower datapoint even when SAIC omits its raw field.
+ *
+ * @param fields Raw charging management fields.
+ */
+export function getChargingManagementFields(
+	fields: Record<string, number | string | undefined>,
+): [string, number | string | undefined][] {
+	const entries = Object.entries(fields);
+	if (!Object.hasOwn(fields, 'realtimePower')) {
+		entries.push(['realtimePower', 0]);
+	}
+	return entries;
 }
 
 /**
