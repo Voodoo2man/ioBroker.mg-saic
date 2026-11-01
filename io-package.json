@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "mg-saic",
-    "version": "0.0.4",
+    "version": "0.1.0",
     "news": {
+      "0.1.0": {
+        "en": "Reported real-time charging power in kW using the pack current and voltage.\nApplied confirmed profile-specific charging conversions.\nCalculated available battery energy from battery level and usable capacity.",
+        "de": "Gemeldete Echtzeit-Ladeleistung in kW mit Packstrom und Spannung.\nBestätigte profilspezifische Umrechnungen angewendet.\nBerechnete Akkuenergie aus Akkustand und nutzbarer Kapazität.",
+        "ru": "Заявленная мощность зарядки в реальном времени в кВт с использованием тока и напряжения блока.\nПрименены подтвержденные преобразования зарядки в зависимости от профиля.\nРасчет доступной энергии батареи в зависимости от уровня заряда батареи и полезной емкости.",
+        "pt": "Carga em tempo real relatada em kW usando a corrente e tensão do pacote.\nAplicou conversões de cobrança confirmadas por perfil.\nCalculou a energia disponível a partir do nível e da capacidade útil.",
+        "nl": "Gerapporteerd laadvermogen in realtime in kW op basis van de stroom en spanning van het pakket.\nBevestigde profielspecifieke laadconversies toegepast.\nBerekende de beschikbare batterij-energie op basis van het batterijniveau en de bruikbare capaciteit.",
+        "fr": "Puissance de charge en temps réel déclarée en kW selon le courant et la tension du pack.\nConversions de recharge spécifiques au profil appliquées et confirmées.\nÉnergie disponible calculée à partir de son niveau et de sa capacité utile.",
+        "it": "Potenza di ricarica in tempo reale in kW con corrente e tensione del pacco.\nConversioni di addebito confermate per profilo applicate.\nEnergia disponibile calcolata in base al livello e alla capacità utile.",
+        "es": "Potencia de carga en tiempo real en kW con la corriente y el voltaje del paquete.\nAplicó conversiones de cargos confirmadas por perfil.\nCalculó la energía disponible de la batería a partir del nivel y la capacidad útil.",
+        "pl": "Zgłoszona moc ładowania w czasie rzeczywistym w kW przy użyciu prądu i napięcia zestawu.\nZastosowano potwierdzone konwersje opłat specyficznych dla profilu.\nObliczono dostępną energię baterii na podstawie poziomu baterii i pojemności użytkowej.",
+        "uk": "Повідомляється про потужність зарядки в режимі реального часу в кВт з використанням струму та напруги пакета.\nЗастосовані підтверджені конверсії оплати для конкретного профілю.\nРозрахована доступна енергія акумулятора від рівня заряду батареї та корисної ємності.",
+        "zh-cn": "使用电池组电流和电压报告了以 kW 为单位的实时充电功率。\n应用了已确认的特定配置文件充电转换。\n根据电池电量和可用容量计算出可用电池能量。"
+      },
       "0.0.4": {
         "en": "Corrected GPS coordinates.\nFixed incorrect datapoint values.\nRemoved duplicate and irrelevant datapoints.\nSet min version of admin to 8.2.0, js-controller 7.2.2, node.js 24",
         "de": "Korrigierte GPS-Daten.\nFalsche Datenpunktwerte behoben.\nDoppelte und irrelevante Datenpunkte entfernt.\nSetze Admin auf 8.2.0, js-controller 7.2.2, node.js 24",
