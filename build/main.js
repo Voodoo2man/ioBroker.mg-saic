@@ -329,7 +329,7 @@ class MgSaic extends utils.Adapter {
               vehicle.vin,
               this.abortController.signal
             );
-            await this.createVehicleChargingObjects(vehicle.vin, charging);
+            await this.createVehicleChargingObjects(vehicle.vin, charging, vehicle.series);
           } catch (error) {
             if (this.stopping) {
               break;
@@ -861,16 +861,17 @@ class MgSaic extends utils.Adapter {
       await this.delObjectAsync(`${statusId}.${key}`);
     }
   }
-  async createVehicleChargingObjects(vin, charging) {
+  async createVehicleChargingObjects(vin, charging, series) {
     await this.ensureVehicleChargingGroups(vin);
     const rootId = `vehicles.${vin}.status.charging`;
     for (const { source, id } of chargingGroups) {
       const groupId = `${rootId}.${id}`;
       const excludedFields = id === "session" ? import_status_metadata.excludedChargingSessionFields : import_status_metadata.excludedChargingStatisticsFields;
+      const fields = source === "chrgMgmtData" ? (0, import_status_metadata.getChargingManagementFields)(charging.chrgMgmtData) : (0, import_status_metadata.getChargingStatisticsFields)(charging[source]);
       for (const field of excludedFields) {
         await this.delObjectAsync(`${groupId}.${field}`);
       }
-      for (const [field, value] of Object.entries(charging[source])) {
+      for (const [field, value] of fields) {
         if (this.stopping) {
           return;
         }
@@ -879,15 +880,20 @@ class MgSaic extends utils.Adapter {
           continue;
         }
         const stateId = `${groupId}.${field}`;
-        if (value === void 0) {
+        if (value === void 0 && field !== "realtimePower" && field !== "batteryAvailableEnergy") {
           await this.delObjectAsync(stateId);
           continue;
         }
-        const metadata = (0, import_status_metadata.getChargingFieldMetadata)(field);
+        const normalizedValue = field === "realtimePower" ? (0, import_status_metadata.calculateRealtimePower)(charging.chrgMgmtData.bmsPackCrnt, charging.chrgMgmtData.bmsPackVol) : value === void 0 ? void 0 : (0, import_status_metadata.normalizeChargingValue)(field, value, series);
+        if (normalizedValue === void 0 && field !== "batteryAvailableEnergy") {
+          await this.delObjectAsync(stateId);
+          continue;
+        }
+        const metadata = (0, import_status_metadata.getChargingFieldMetadata)(field, series);
         const common = {
           name: (0, import_runtime_translations.getChargingFieldName)(field),
-          type: metadata.type === "boolean" ? "boolean" : typeof value === "string" ? "string" : "number",
-          role: typeof value === "string" ? "text" : metadata.role,
+          type: metadata.type === "boolean" ? "boolean" : typeof normalizedValue === "string" ? "string" : "number",
+          role: typeof normalizedValue === "string" ? "text" : metadata.role,
           read: true,
           write: false
         };
@@ -896,8 +902,11 @@ class MgSaic extends utils.Adapter {
         }
         await this.setObjectNotExistsAsync(stateId, { type: "state", common, native: {} });
         await this.extendObjectAsync(stateId, { common });
+        if (normalizedValue === void 0) {
+          continue;
+        }
         await this.setStateAsync(stateId, {
-          val: (0, import_status_metadata.normalizeChargingValue)(field, value),
+          val: normalizedValue,
           ack: true
         });
         if (field === "bmsOnBdChrgTrgtSOCDspCmd" && typeof value === "number" && value >= 1 && value <= 7) {
@@ -905,12 +914,30 @@ class MgSaic extends utils.Adapter {
           const targetSocState = await this.getStateAsync(targetSocId);
           if ((0, import_status_metadata.shouldApplySettingFeedback)(targetSocState, this.pendingSettingEdits.has(targetSocId))) {
             await this.setStateAsync(targetSocId, {
-              val: (0, import_status_metadata.normalizeChargingValue)(field, value),
+              val: (0, import_status_metadata.normalizeChargingValue)(field, value, series),
               ack: true
             });
           }
         }
       }
+    }
+    const capacityState = await this.getStateAsync(`${rootId}.statistics.totalBatteryCapacity`);
+    const socState = await this.getStateAsync(`${rootId}.session.bmsPackSOCDsp`);
+    const availableEnergy = (0, import_status_metadata.calculateAvailableBatteryEnergy)(
+      capacityState == null ? void 0 : capacityState.val,
+      socState == null ? void 0 : socState.val,
+      charging.rvsChargeStatus.packEnergyKwh
+    );
+    if (availableEnergy !== void 0) {
+      await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+        val: availableEnergy,
+        ack: true
+      });
+    } else {
+      await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+        val: null,
+        ack: true
+      });
     }
     for (const [setting, value] of Object.entries((0, import_status_metadata.getChargingSettingFeedback)(charging.chrgMgmtData))) {
       const stateId = vehicleCommandPath(vin, setting);
