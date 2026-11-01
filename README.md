@@ -45,6 +45,7 @@ The adapter is published on npm but has not yet been added to the ioBroker adapt
 
 - (Voodoo2man) Reported real-time charging power in kW using the pack current and voltage.
 - (Voodoo2man) Applied confirmed profile-specific charging conversions.
+- (Voodoo2man) Calculated available battery energy from battery level and usable capacity.
 
 ### 0.0.4 (2026-10-24)
 

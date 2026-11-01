@@ -18,6 +18,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var status_metadata_exports = {};
 __export(status_metadata_exports, {
+  calculateAvailableBatteryEnergy: () => calculateAvailableBatteryEnergy,
   calculateRealtimePower: () => calculateRealtimePower,
   excludedChargingSessionFields: () => excludedChargingSessionFields,
   excludedChargingStatisticsFields: () => excludedChargingStatisticsFields,
@@ -25,6 +26,7 @@ __export(status_metadata_exports, {
   getChargingFieldMetadata: () => getChargingFieldMetadata,
   getChargingManagementFields: () => getChargingManagementFields,
   getChargingSettingFeedback: () => getChargingSettingFeedback,
+  getChargingStatisticsFields: () => getChargingStatisticsFields,
   getVehicleStatusGroup: () => getVehicleStatusGroup,
   getVehicleStatusMetadata: () => getVehicleStatusMetadata,
   normalizeChargingValue: () => normalizeChargingValue,
@@ -969,6 +971,7 @@ const chargingFieldMetadata = {
   chargingDuration: { type: "number", role: "value.interval", unit: "min", factor: 1 / 60, precision: 1 },
   endTime: { type: "number", role: "date", factor: 1e3 },
   fuelRangeElec: { type: "number", role: "value.distance", unit: "km", factor: 0.1, precision: 1 },
+  batteryAvailableEnergy: { type: "number", role: "value.energy", unit: "kWh", precision: 2 },
   lastChargeEndingPower: { type: "number", role: "value.energy", unit: "kWh", factor: 0.1, precision: 1 },
   mileage: { type: "number", role: "value.distance", unit: "km", factor: 0.1, precision: 1 },
   mileageOfDay: { type: "number", role: "value.distance", unit: "km", factor: 0.1, precision: 1 },
@@ -1031,6 +1034,37 @@ function getChargingManagementFields(fields) {
   }
   return entries;
 }
+function getChargingStatisticsFields(fields) {
+  const entries = Object.entries(fields).filter(([key]) => key !== "batteryAvailableEnergy");
+  const directValue = fields.packEnergyKwh;
+  entries.push([
+    "batteryAvailableEnergy",
+    isValidBatteryEnergy(directValue) ? Number(directValue.toFixed(2)) : void 0
+  ]);
+  return entries;
+}
+function calculateAvailableBatteryEnergy(capacityKwh, socPercent, directEnergyKwh) {
+  const capacity = toFiniteNumber(capacityKwh);
+  const soc = toFiniteNumber(socPercent);
+  if (capacity !== void 0 && capacity > 0 && soc !== void 0 && soc >= 0 && soc <= 100) {
+    return Number((capacity * soc / 100).toFixed(2));
+  }
+  const directEnergy = toFiniteNumber(directEnergyKwh);
+  return directEnergy !== void 0 && directEnergy >= 0 ? Number(directEnergy.toFixed(2)) : void 0;
+}
+function toFiniteNumber(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : void 0;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : void 0;
+  }
+  return void 0;
+}
+function isValidBatteryEnergy(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
 function getVehicleStatusMetadata(key) {
   var _a, _b;
   const name = (_a = statusNames[key]) != null ? _a : Object.fromEntries(
@@ -1085,6 +1119,7 @@ function resolveOdometerValue(liveValue, cachedValue) {
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  calculateAvailableBatteryEnergy,
   calculateRealtimePower,
   excludedChargingSessionFields,
   excludedChargingStatisticsFields,
@@ -1092,6 +1127,7 @@ function resolveOdometerValue(liveValue, cachedValue) {
   getChargingFieldMetadata,
   getChargingManagementFields,
   getChargingSettingFeedback,
+  getChargingStatisticsFields,
   getVehicleStatusGroup,
   getVehicleStatusMetadata,
   normalizeChargingValue,

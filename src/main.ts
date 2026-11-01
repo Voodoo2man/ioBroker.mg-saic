@@ -24,6 +24,8 @@ import {
 	calculateRealtimePower,
 	getChargingFieldMetadata,
 	getChargingManagementFields,
+	getChargingStatisticsFields,
+	calculateAvailableBatteryEnergy,
 	excludedChargingSessionFields,
 	excludedChargingStatisticsFields,
 	excludedVehicleStatusFields,
@@ -956,7 +958,7 @@ class MgSaic extends utils.Adapter {
 			const fields =
 				source === 'chrgMgmtData'
 					? getChargingManagementFields(charging.chrgMgmtData)
-					: Object.entries(charging[source]);
+					: getChargingStatisticsFields(charging[source]);
 			for (const field of excludedFields) {
 				await this.delObjectAsync(`${groupId}.${field}`);
 			}
@@ -969,7 +971,7 @@ class MgSaic extends utils.Adapter {
 					continue;
 				}
 				const stateId = `${groupId}.${field}`;
-				if (value === undefined && field !== 'realtimePower') {
+				if (value === undefined && field !== 'realtimePower' && field !== 'batteryAvailableEnergy') {
 					await this.delObjectAsync(stateId);
 					continue;
 				}
@@ -979,7 +981,7 @@ class MgSaic extends utils.Adapter {
 						: value === undefined
 							? undefined
 							: normalizeChargingValue(field, value, series);
-				if (normalizedValue === undefined) {
+				if (normalizedValue === undefined && field !== 'batteryAvailableEnergy') {
 					await this.delObjectAsync(stateId);
 					continue;
 				}
@@ -1001,6 +1003,9 @@ class MgSaic extends utils.Adapter {
 				}
 				await this.setObjectNotExistsAsync(stateId, { type: 'state', common, native: {} });
 				await this.extendObjectAsync(stateId, { common });
+				if (normalizedValue === undefined) {
+					continue;
+				}
 				await this.setStateAsync(stateId, {
 					val: normalizedValue,
 					ack: true,
@@ -1016,6 +1021,24 @@ class MgSaic extends utils.Adapter {
 					}
 				}
 			}
+		}
+		const capacityState = await this.getStateAsync(`${rootId}.statistics.totalBatteryCapacity`);
+		const socState = await this.getStateAsync(`${rootId}.session.bmsPackSOCDsp`);
+		const availableEnergy = calculateAvailableBatteryEnergy(
+			capacityState?.val,
+			socState?.val,
+			charging.rvsChargeStatus.packEnergyKwh,
+		);
+		if (availableEnergy !== undefined) {
+			await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+				val: availableEnergy,
+				ack: true,
+			});
+		} else {
+			await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+				val: null,
+				ack: true,
+			});
 		}
 		for (const [setting, value] of Object.entries(getChargingSettingFeedback(charging.chrgMgmtData))) {
 			const stateId = vehicleCommandPath(vin, setting);

@@ -8,6 +8,8 @@ import {
 	excludedVehicleStatusFields,
 	getChargingFieldMetadata,
 	getChargingManagementFields,
+	getChargingStatisticsFields,
+	calculateAvailableBatteryEnergy,
 	calculateRealtimePower,
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
@@ -37,7 +39,6 @@ describe('getVehicleStatusMetadata', () => {
 		});
 		expect(getChargingSettingFeedback({ bmsReserStHourDspCmd: 24, bmsReserStMintueDspCmd: 0 })).to.deep.equal({});
 	});
-
 	it('does not overwrite a pending setting edit even after it was acknowledged', () => {
 		expect(shouldApplySettingFeedback({ val: 90, ack: true } as ioBroker.State, true)).to.equal(false);
 		expect(shouldApplySettingFeedback({ val: 90, ack: false } as ioBroker.State, false)).to.equal(false);
@@ -84,6 +85,10 @@ describe('getVehicleStatusMetadata', () => {
 		expect(getChargingFieldMetadata('workingCurrent')).to.include({ role: 'value.current', unit: 'A' });
 		expect(getChargingFieldMetadata('workingVoltage')).to.include({ role: 'value.voltage', unit: 'V' });
 		expect(getChargingFieldMetadata('powerUsageSinceLastCharge')).to.include({
+			role: 'value.energy',
+			unit: 'kWh',
+		});
+		expect(getChargingFieldMetadata('batteryAvailableEnergy')).to.include({
 			role: 'value.energy',
 			unit: 'kWh',
 		});
@@ -135,6 +140,39 @@ describe('getVehicleStatusMetadata', () => {
 			['realtimePower', 0],
 		]);
 		expect(getChargingManagementFields({ realtimePower: 271 })).to.deep.equal([['realtimePower', 271]]);
+	});
+
+	it('calculates available battery energy from SOC and trusted capacity', () => {
+		expect(getChargingStatisticsFields({ packEnergyKwh: 42.3 }).at(-1)).to.deep.equal([
+			'batteryAvailableEnergy',
+			42.3,
+		]);
+		expect(getChargingStatisticsFields({ packEnergyKwh: 42.346 }).at(-1)).to.deep.equal([
+			'batteryAvailableEnergy',
+			42.35,
+		]);
+		expect(calculateAvailableBatteryEnergy(74.3, 50)).to.equal(37.15);
+		expect(calculateAvailableBatteryEnergy(64, 50)).to.equal(32);
+		expect(calculateAvailableBatteryEnergy('64', '50')).to.equal(32);
+		expect(calculateAvailableBatteryEnergy(0, 50)).to.equal(undefined);
+		expect(calculateAvailableBatteryEnergy(64, 101)).to.equal(undefined);
+		expect(calculateAvailableBatteryEnergy(0, 101, 42.3)).to.equal(42.3);
+		expect(calculateAvailableBatteryEnergy(64, 50, 42.3)).to.equal(32);
+	});
+
+	it('keeps battery energy available as a datapoint without valid inputs', () => {
+		for (const invalid of [-1, -128, Number.NaN, Number.POSITIVE_INFINITY, true, '40']) {
+			const fields = { packEnergyKwh: invalid } as Record<string, number | string | undefined>;
+			expect(getChargingStatisticsFields(fields).at(-1)).to.deep.equal(['batteryAvailableEnergy', undefined]);
+		}
+		expect(calculateAvailableBatteryEnergy(64, 50)).to.equal(32);
+		expect(getChargingStatisticsFields({ lastChargeEndingPower: 100 }).at(-1)).to.deep.equal([
+			'batteryAvailableEnergy',
+			undefined,
+		]);
+		expect(
+			getChargingStatisticsFields({ lastChargeEndingPower: 100, powerUsageSinceLastCharge: 200 }).at(-1),
+		).to.deep.equal(['batteryAvailableEnergy', undefined]);
 	});
 
 	it('groups status datapoints by vehicle function', () => {

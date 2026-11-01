@@ -1010,6 +1010,7 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	chargingDuration: { type: 'number', role: 'value.interval', unit: 'min', factor: 1 / 60, precision: 1 },
 	endTime: { type: 'number', role: 'date', factor: 1000 },
 	fuelRangeElec: { type: 'number', role: 'value.distance', unit: 'km', factor: 0.1, precision: 1 },
+	batteryAvailableEnergy: { type: 'number', role: 'value.energy', unit: 'kWh', precision: 2 },
 	lastChargeEndingPower: { type: 'number', role: 'value.energy', unit: 'kWh', factor: 0.1, precision: 1 },
 	mileage: { type: 'number', role: 'value.distance', unit: 'km', factor: 0.1, precision: 1 },
 	mileageOfDay: { type: 'number', role: 'value.distance', unit: 'km', factor: 0.1, precision: 1 },
@@ -1113,6 +1114,59 @@ export function getChargingManagementFields(
 		entries.push(['realtimePower', 0]);
 	}
 	return entries;
+}
+
+/**
+ * Include current available battery energy from the direct value or charge statistics.
+ *
+ * @param fields Raw charging statistics fields.
+ */
+export function getChargingStatisticsFields(
+	fields: Record<string, number | string | undefined>,
+): [string, number | string | undefined][] {
+	const entries = Object.entries(fields).filter(([key]) => key !== 'batteryAvailableEnergy');
+	const directValue = fields.packEnergyKwh;
+	entries.push([
+		'batteryAvailableEnergy',
+		isValidBatteryEnergy(directValue) ? Number(directValue.toFixed(2)) : undefined,
+	]);
+	return entries;
+}
+
+/**
+ * Calculate available battery energy from the published capacity and state of charge.
+ *
+ * @param capacityKwh Published battery capacity in kWh.
+ * @param socPercent Published state of charge in percent.
+ * @param directEnergyKwh Optional direct battery-energy value in kWh.
+ */
+export function calculateAvailableBatteryEnergy(
+	capacityKwh: unknown,
+	socPercent: unknown,
+	directEnergyKwh?: unknown,
+): number | undefined {
+	const capacity = toFiniteNumber(capacityKwh);
+	const soc = toFiniteNumber(socPercent);
+	if (capacity !== undefined && capacity > 0 && soc !== undefined && soc >= 0 && soc <= 100) {
+		return Number(((capacity * soc) / 100).toFixed(2));
+	}
+	const directEnergy = toFiniteNumber(directEnergyKwh);
+	return directEnergy !== undefined && directEnergy >= 0 ? Number(directEnergy.toFixed(2)) : undefined;
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? value : undefined;
+	}
+	if (typeof value === 'string' && value.trim() !== '') {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
+function isValidBatteryEnergy(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 /**

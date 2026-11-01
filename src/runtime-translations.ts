@@ -996,6 +996,7 @@ const chargingFieldNames: Record<string, { en: string; de: string }> = {
 	chargingGunState: { en: 'Charging connector state', de: 'Ladesteckerstatus' },
 	chargingType: { en: 'Charging type', de: 'Ladeart' },
 	endTime: { en: 'Charge end time', de: 'Ladeende' },
+	batteryAvailableEnergy: { en: 'Available battery energy', de: 'Verfügbare Batterieenergie' },
 	fuelRangeElec: { en: 'Electric range', de: 'Elektrische Reichweite' },
 	mileage: { en: 'Odometer', de: 'Kilometerstand' },
 	mileageOfDay: { en: 'Distance today', de: 'Tageskilometer' },

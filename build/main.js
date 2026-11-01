@@ -867,7 +867,7 @@ class MgSaic extends utils.Adapter {
     for (const { source, id } of chargingGroups) {
       const groupId = `${rootId}.${id}`;
       const excludedFields = id === "session" ? import_status_metadata.excludedChargingSessionFields : import_status_metadata.excludedChargingStatisticsFields;
-      const fields = source === "chrgMgmtData" ? (0, import_status_metadata.getChargingManagementFields)(charging.chrgMgmtData) : Object.entries(charging[source]);
+      const fields = source === "chrgMgmtData" ? (0, import_status_metadata.getChargingManagementFields)(charging.chrgMgmtData) : (0, import_status_metadata.getChargingStatisticsFields)(charging[source]);
       for (const field of excludedFields) {
         await this.delObjectAsync(`${groupId}.${field}`);
       }
@@ -880,12 +880,12 @@ class MgSaic extends utils.Adapter {
           continue;
         }
         const stateId = `${groupId}.${field}`;
-        if (value === void 0 && field !== "realtimePower") {
+        if (value === void 0 && field !== "realtimePower" && field !== "batteryAvailableEnergy") {
           await this.delObjectAsync(stateId);
           continue;
         }
         const normalizedValue = field === "realtimePower" ? (0, import_status_metadata.calculateRealtimePower)(charging.chrgMgmtData.bmsPackCrnt, charging.chrgMgmtData.bmsPackVol) : value === void 0 ? void 0 : (0, import_status_metadata.normalizeChargingValue)(field, value, series);
-        if (normalizedValue === void 0) {
+        if (normalizedValue === void 0 && field !== "batteryAvailableEnergy") {
           await this.delObjectAsync(stateId);
           continue;
         }
@@ -902,6 +902,9 @@ class MgSaic extends utils.Adapter {
         }
         await this.setObjectNotExistsAsync(stateId, { type: "state", common, native: {} });
         await this.extendObjectAsync(stateId, { common });
+        if (normalizedValue === void 0) {
+          continue;
+        }
         await this.setStateAsync(stateId, {
           val: normalizedValue,
           ack: true
@@ -917,6 +920,24 @@ class MgSaic extends utils.Adapter {
           }
         }
       }
+    }
+    const capacityState = await this.getStateAsync(`${rootId}.statistics.totalBatteryCapacity`);
+    const socState = await this.getStateAsync(`${rootId}.session.bmsPackSOCDsp`);
+    const availableEnergy = (0, import_status_metadata.calculateAvailableBatteryEnergy)(
+      capacityState == null ? void 0 : capacityState.val,
+      socState == null ? void 0 : socState.val,
+      charging.rvsChargeStatus.packEnergyKwh
+    );
+    if (availableEnergy !== void 0) {
+      await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+        val: availableEnergy,
+        ack: true
+      });
+    } else {
+      await this.setStateAsync(`${rootId}.statistics.batteryAvailableEnergy`, {
+        val: null,
+        ack: true
+      });
     }
     for (const [setting, value] of Object.entries((0, import_status_metadata.getChargingSettingFeedback)(charging.chrgMgmtData))) {
       const stateId = vehicleCommandPath(vin, setting);
