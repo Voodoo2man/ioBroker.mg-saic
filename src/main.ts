@@ -1,4 +1,6 @@
 import * as utils from '@iobroker/adapter-core';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { DEFAULT_POLL_INTERVAL_SECONDS, validateConfig, type MgSaicConfig } from './config';
 import {
 	SaicApiClient,
@@ -16,7 +18,11 @@ import {
 } from './saic-client';
 import { resolveSaicRegion } from './regions';
 import { isRefreshCommand, normalizeStateChangeId } from './refresh-command';
-import { parsePendingSettingEdits, serializePendingSettingEdits } from './pending-setting-edits';
+import {
+	migrateLegacyPendingSettingEdits,
+	parsePendingSettingEdits,
+	serializePendingSettingEdits,
+} from './pending-setting-edits';
 import {
 	getVehicleStatusGroup,
 	getVehicleStatusMetadata,
@@ -128,6 +134,7 @@ const settingInputsByAction: Record<SettingAction, string[]> = {
 };
 
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
+const PENDING_SETTING_EDITS_FILE = 'pending-setting-edits.json';
 
 class MgSaic extends utils.Adapter {
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
@@ -175,16 +182,12 @@ class MgSaic extends utils.Adapter {
 		await this.extendObjectAsync('info.backend', { common: { name: getRuntimeName('backend') } });
 		await this.extendObjectAsync('info.connection', { common: { name: getRuntimeName('connection') } });
 		await this.extendObjectAsync('info.lastError', { common: { name: getRuntimeName('lastError') } });
-		await this.setObjectNotExistsAsync('internal', {
-			type: 'channel',
-			common: { name: 'Internal' },
-			native: {},
-		});
-		await this.setObjectNotExistsAsync('internal.pendingSettingEdits', {
-			type: 'state',
-			common: { name: 'Pending setting edits', type: 'string', role: 'json', read: true, write: false },
-			native: {},
-		});
+		try {
+			await this.migrateLegacyPendingSettingEdits();
+		} catch (error) {
+			const details = error instanceof Error ? error.message : 'Unknown storage error';
+			this.log.warn(`Could not migrate pending setting edits: ${details}`);
+		}
 		await this.setObjectNotExistsAsync('commands', {
 			type: 'channel',
 			common: { name: getRuntimeName('commands') },
@@ -286,7 +289,12 @@ class MgSaic extends utils.Adapter {
 				}
 				await this.delObjectAsync(`vehicles.${vehicle.vin}.canonicalStatus`, { recursive: true });
 			}
-			await this.restorePendingSettingEdits();
+			try {
+				await this.restorePendingSettingEdits();
+			} catch (error) {
+				const details = error instanceof Error ? error.message : 'Unknown storage error';
+				this.log.warn(`Could not restore pending setting edits: ${details}`);
+			}
 			await this.setState('info.connection', true, true);
 			this.log.info(`SAIC account authenticated; discovered ${this.vehicles.length} vehicle(s).`);
 			if (this.vehicles.length === 0) {
@@ -609,14 +617,60 @@ class MgSaic extends utils.Adapter {
 	}
 
 	private async persistPendingSettingEdits(): Promise<void> {
-		const serialized = serializePendingSettingEdits(this.pendingSettingEdits.keys());
 		const write = this.pendingSettingEditsWrite
 			.catch(() => undefined)
 			.then(async () => {
-				await this.setStateAsync('internal.pendingSettingEdits', { val: serialized, ack: true });
+				await this.writePendingSettingEditsFile(serializePendingSettingEdits(this.pendingSettingEdits.keys()));
 			});
 		this.pendingSettingEditsWrite = write;
 		await write;
+	}
+
+	private async migrateLegacyPendingSettingEdits(): Promise<void> {
+		const legacyObject = await this.getObjectAsync('internal.pendingSettingEdits');
+		if (legacyObject) {
+			const legacyState = await this.getStateAsync('internal.pendingSettingEdits');
+			const savedFileValue = await this.readPendingSettingEditsFile();
+			await migrateLegacyPendingSettingEdits(
+				savedFileValue,
+				{ exists: true, value: legacyState?.val },
+				serialized => this.writePendingSettingEditsFile(serialized),
+				() => this.delObjectAsync('internal.pendingSettingEdits'),
+			);
+		}
+
+		const internalObject = await this.getObjectAsync('internal');
+		if (!internalObject) {
+			return;
+		}
+		const children = await this.getObjectListAsync({
+			startkey: `${this.namespace}.internal.`,
+			endkey: `${this.namespace}.internal.\u9999`,
+		});
+		if (children.rows.length === 0) {
+			await this.delObjectAsync('internal');
+		}
+	}
+
+	private async readPendingSettingEditsFile(): Promise<string | undefined> {
+		try {
+			return await readFile(this.getPendingSettingEditsFilePath(), 'utf8');
+		} catch (error) {
+			if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+				return undefined;
+			}
+			throw error;
+		}
+	}
+
+	private async writePendingSettingEditsFile(serialized: string): Promise<void> {
+		const directory = utils.getAbsoluteInstanceDataDir(this);
+		await mkdir(directory, { recursive: true });
+		await writeFile(this.getPendingSettingEditsFilePath(), serialized, 'utf8');
+	}
+
+	private getPendingSettingEditsFilePath(): string {
+		return join(utils.getAbsoluteInstanceDataDir(this), PENDING_SETTING_EDITS_FILE);
 	}
 
 	private async restorePendingSettingEdits(): Promise<void> {
@@ -627,8 +681,8 @@ class MgSaic extends utils.Adapter {
 					.map(stateId => vehicleCommandPath(vin, stateId)),
 			),
 		);
-		const savedState = await this.getStateAsync('internal.pendingSettingEdits');
-		for (const stateId of parsePendingSettingEdits(savedState?.val, validStateIds)) {
+		const savedFileValue = await this.readPendingSettingEditsFile();
+		for (const stateId of parsePendingSettingEdits(savedFileValue, validStateIds)) {
 			this.pendingSettingEdits.set(stateId, ++this.settingEditSequence);
 		}
 		for (const stateId of validStateIds) {
