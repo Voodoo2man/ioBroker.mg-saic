@@ -6,6 +6,7 @@ import {
 	encryptSaicRequestBody,
 	sha1PasswordDigest,
 } from './saic-crypto';
+import { resolveVehicleStatusFieldName } from './status-metadata';
 
 /** Options required to sign in to the global SAIC API. */
 export interface SaicLoginOptions {
@@ -1385,10 +1386,11 @@ export class SaicApiClient {
 			seenStatusFields.add(canonicalField);
 			return true;
 		};
-		for (const [field, value] of Object.entries(rawStatus)) {
-			if (!acceptStatusField(field, field)) {
+		for (const [apiField, value] of Object.entries(rawStatus)) {
+			if (!acceptStatusField(apiField, apiField)) {
 				continue;
 			}
+			const field = resolveVehicleStatusFieldName(apiField);
 			if (typeof value === 'number' && Number.isFinite(value) && value !== -128) {
 				setOwnRecordField(basicVehicleStatus, field, value);
 				acceptedFields.push(field);
@@ -1408,14 +1410,21 @@ export class SaicApiClient {
 						ignoredFields.push(INVALID_API_FIELD_NAME);
 						continue;
 					}
-					if (field === 'position' && value && typeof value === 'object' && !Array.isArray(value)) {
+					if (
+						field.toLowerCase() === 'position' &&
+						value &&
+						typeof value === 'object' &&
+						!Array.isArray(value)
+					) {
 						for (const [positionField, positionValue] of Object.entries(value as Record<string, unknown>)) {
 							const positionSource = `${source}.${positionField}`;
 							if (!isSafeApiIdSegment(positionField)) {
 								ignoredFields.push(INVALID_API_FIELD_NAME);
 								continue;
 							}
-							const statusField = `gps${positionField[0].toUpperCase()}${positionField.slice(1)}`;
+							const statusField = resolveVehicleStatusFieldName(
+								`gps${positionField[0].toUpperCase()}${positionField.slice(1)}`,
+							);
 							if (!acceptStatusField(statusField, positionSource)) {
 								continue;
 							}
@@ -1433,7 +1442,9 @@ export class SaicApiClient {
 						}
 						continue;
 					}
-					const statusField = field === 'speed' ? 'speed' : `gps${field[0].toUpperCase()}${field.slice(1)}`;
+					const statusField = resolveVehicleStatusFieldName(
+						field.toLowerCase() === 'speed' ? 'speed' : `gps${field[0].toUpperCase()}${field.slice(1)}`,
+					);
 					if (!acceptStatusField(statusField, source)) {
 						continue;
 					}

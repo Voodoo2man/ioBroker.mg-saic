@@ -47,6 +47,7 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 
 - (Voodoo2man) Prevented unsafe or case-colliding API fields and vehicle IDs from creating duplicate datapoints, kept status IDs stable across field-casing changes, scheduled polling after each completed cycle while honoring queued manual refreshes, and removed an unused cloud-backend translation.
 - (Voodoo2man) Replaced untrusted cloud error text with English code-based diagnostics and standardized the product title as MG/SAIC across locales.
+- (Voodoo2man) Reused dynamic charging datapoints across field-name casing changes and normalized known status fields.
 
 ### 0.1.1 (2026-11-07)
 

@@ -1033,6 +1033,18 @@ const statusScales: Record<string, { factor: number; precision: number }> = {
 	speed: { factor: 0.1, precision: 1 },
 };
 
+const canonicalStatusFieldNames = new Map<string, string>();
+for (const field of new Set([
+	...Object.keys(statusNames),
+	...excludedVehicleStatusFields,
+	...booleanStatusFields,
+	...Object.keys(statusRoles),
+	...Object.keys(statusUnits),
+	...Object.keys(statusScales),
+])) {
+	canonicalStatusFieldNames.set(field.toLowerCase(), field);
+}
+
 const chargingBooleanFields = new Set([
 	'ccuEleccLckCtrlDspCmd',
 	'ccuOffBdChrgrPlugOn',
@@ -1159,10 +1171,41 @@ export function getChargingManagementFields(
 	fields: Record<string, number | string | undefined>,
 ): [string, number | string | undefined][] {
 	const entries = Object.entries(fields);
-	if (!Object.hasOwn(fields, 'realtimePower')) {
+	if (!entries.some(([field]) => field.toLowerCase() === 'realtimepower')) {
 		entries.push(['realtimePower', 0]);
 	}
 	return entries;
+}
+
+/**
+ * Resolve incoming charging field names to matching existing object IDs.
+ *
+ * @param fieldNames Field names in the current API response.
+ * @param existingFieldIds Existing state ID leaf names.
+ */
+export function resolveChargingFieldIds(
+	fieldNames: readonly string[],
+	existingFieldIds: readonly string[],
+): [string, string][] {
+	const existingIdsByName = new Map<string, string>();
+	for (const fieldId of existingFieldIds) {
+		const name = fieldId.toLowerCase();
+		if (!existingIdsByName.has(name)) {
+			existingIdsByName.set(name, fieldId);
+		}
+	}
+
+	const seenNames = new Set<string>();
+	const resolvedIds: [string, string][] = [];
+	for (const fieldName of fieldNames) {
+		const name = fieldName.toLowerCase();
+		if (seenNames.has(name)) {
+			continue;
+		}
+		seenNames.add(name);
+		resolvedIds.push([fieldName, existingIdsByName.get(name) ?? fieldName]);
+	}
+	return resolvedIds;
 }
 
 /**
@@ -1219,34 +1262,48 @@ function isValidBatteryEnergy(value: unknown): value is number {
 }
 
 /**
+ * Return the canonical spelling for a known SAIC status field.
+ *
+ * @param key SAIC status field name.
+ */
+export function resolveVehicleStatusFieldName(key: string): string {
+	return canonicalStatusFieldNames.get(key.toLowerCase()) ?? key;
+}
+
+/**
  * Returns the ioBroker metadata for a vehicle status field.
  *
  * @param key SAIC status field name.
  */
 export function getVehicleStatusMetadata(key: string): VehicleStatusMetadata {
+	const canonicalKey = resolveVehicleStatusFieldName(key);
 	const name =
-		statusNames[key] ??
+		statusNames[canonicalKey] ??
 		(Object.fromEntries(
 			(['en', 'de', 'ru', 'pt', 'nl', 'fr', 'it', 'es', 'pl', 'uk', 'zh-cn'] as const).map(language => [
 				language,
-				key,
+				canonicalKey,
 			]),
 		) as LocalizedStatusName);
-	if (key === 'statusTime') {
+	if (canonicalKey === 'statusTime') {
 		return { type: 'number', role: 'date', name };
 	}
-	if (booleanStatusFields.has(key)) {
+	if (booleanStatusFields.has(canonicalKey)) {
 		return {
 			type: 'boolean',
-			role: key.endsWith('Door') ? 'sensor.door' : key.endsWith('Window') ? 'sensor.window' : 'indicator',
+			role: canonicalKey.endsWith('Door')
+				? 'sensor.door'
+				: canonicalKey.endsWith('Window')
+					? 'sensor.window'
+					: 'indicator',
 			name,
 		};
 	}
 	return {
 		type: 'number',
-		role: statusRoles[key] ?? 'value',
+		role: statusRoles[canonicalKey] ?? 'value',
 		name,
-		...(statusUnits[key] ? { unit: statusUnits[key] } : {}),
+		...(statusUnits[canonicalKey] ? { unit: statusUnits[canonicalKey] } : {}),
 	};
 }
 
@@ -1257,24 +1314,25 @@ export function getVehicleStatusMetadata(key: string): VehicleStatusMetadata {
  * @param value Numeric value returned by the API.
  */
 export function normalizeVehicleStatusValue(key: string, value: number): number | boolean | undefined {
-	if (key === 'statusTime') {
+	const canonicalKey = resolveVehicleStatusFieldName(key);
+	if (canonicalKey === 'statusTime') {
 		return value * 1000;
 	}
-	if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
+	if (booleanStatusFields.has(canonicalKey) && (value === 0 || value === 1)) {
 		return value === 1;
 	}
-	if (key === 'gpsLatitude' || key === 'gpsLongitude') {
+	if (canonicalKey === 'gpsLatitude' || canonicalKey === 'gpsLongitude') {
 		if (value === -128) {
 			return undefined;
 		}
-		const coordinate = value * statusScales[key].factor;
-		const maximum = key === 'gpsLatitude' ? 90 : 180;
+		const coordinate = value * statusScales[canonicalKey].factor;
+		const maximum = canonicalKey === 'gpsLatitude' ? 90 : 180;
 		if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
 			return undefined;
 		}
-		return Number(coordinate.toFixed(statusScales[key].precision));
+		return Number(coordinate.toFixed(statusScales[canonicalKey].precision));
 	}
-	const scale = statusScales[key];
+	const scale = statusScales[canonicalKey];
 	return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;
 }
 

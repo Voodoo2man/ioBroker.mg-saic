@@ -8,11 +8,13 @@ import {
 	excludedVehicleStatusFields,
 	getChargingFieldMetadata,
 	getChargingManagementFields,
+	resolveChargingFieldIds,
 	getChargingStatisticsFields,
 	calculateAvailableBatteryEnergy,
 	calculateRealtimePower,
 	normalizeChargingValue,
 	normalizeVehicleStatusValue,
+	resolveVehicleStatusFieldName,
 	resolveOdometerValue,
 	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
@@ -160,13 +162,27 @@ describe('getVehicleStatusMetadata', () => {
 		expect(normalizeChargingValue('bmsPackSOCDsp', -128)).to.equal(-128);
 	});
 
-	it('includes calculated realtimePower when the raw field is absent', () => {
+	it('includes calculated realtimePower only when no casing variant is present in the response', () => {
 		expect(getChargingManagementFields({ bmsPackCrnt: 19800, bmsPackVol: 1707 })).to.deep.equal([
 			['bmsPackCrnt', 19800],
 			['bmsPackVol', 1707],
 			['realtimePower', 0],
 		]);
 		expect(getChargingManagementFields({ realtimePower: 271 })).to.deep.equal([['realtimePower', 271]]);
+		expect(getChargingManagementFields({ REALTIMEPOWER: 271 })).to.deep.equal([['REALTIMEPOWER', 271]]);
+	});
+
+	it('reuses existing charging field IDs and deduplicates response names case-insensitively', () => {
+		expect(
+			resolveChargingFieldIds(
+				['BMSPACKSOCDSP', 'RealtimePower', 'realtimePower', 'newField', 'NEWFIELD'],
+				['bmsPackSOCDsp', 'RealtimePower'],
+			),
+		).to.deep.equal([
+			['BMSPACKSOCDSP', 'bmsPackSOCDsp'],
+			['RealtimePower', 'RealtimePower'],
+			['newField', 'newField'],
+		]);
 	});
 
 	it('calculates available battery energy from SOC and trusted capacity', () => {
@@ -284,6 +300,19 @@ describe('getVehicleStatusMetadata', () => {
 		expect(getVehicleStatusMetadata('frontLeftTyrePressure').role).to.equal('value.pressure');
 		expect(getVehicleStatusMetadata('batteryVoltage').role).to.equal('value.voltage');
 		expect(getVehicleStatusMetadata('mileage').role).to.equal('value.distance');
+	});
+
+	it('resolves known status field casing before metadata selection and value conversion', () => {
+		expect(resolveVehicleStatusFieldName('BATTERYVOLTAGE')).to.equal('batteryVoltage');
+		expect(getVehicleStatusMetadata('BATTERYVOLTAGE')).to.include({
+			role: 'value.voltage',
+			unit: 'V',
+		});
+		expect(normalizeVehicleStatusValue('BATTERYVOLTAGE', 142)).to.equal(14.2);
+		expect(resolveVehicleStatusFieldName('FutureStatusField')).to.equal('FutureStatusField');
+		expect(getVehicleStatusMetadata('FutureStatusField').role).to.equal('value');
+		expect(getVehicleStatusMetadata('FutureStatusField').name.en).to.equal('FutureStatusField');
+		expect(normalizeVehicleStatusValue('FutureStatusField', 42)).to.equal(42);
 	});
 
 	it('converts binary numeric status values to booleans', () => {

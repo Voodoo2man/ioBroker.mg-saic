@@ -32,8 +32,10 @@ __export(status_metadata_exports, {
   indexVehicleStatusFieldIds: () => indexVehicleStatusFieldIds,
   normalizeChargingValue: () => normalizeChargingValue,
   normalizeVehicleStatusValue: () => normalizeVehicleStatusValue,
+  resolveChargingFieldIds: () => resolveChargingFieldIds,
   resolveOdometerValue: () => resolveOdometerValue,
   resolveVehicleStatusFieldId: () => resolveVehicleStatusFieldId,
+  resolveVehicleStatusFieldName: () => resolveVehicleStatusFieldName,
   shouldApplySettingFeedback: () => shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue: () => shouldDeleteUnavailableStatusValue
 });
@@ -976,6 +978,17 @@ const statusScales = {
   rearRightTyrePressure: { factor: 0.04, precision: 2 },
   speed: { factor: 0.1, precision: 1 }
 };
+const canonicalStatusFieldNames = /* @__PURE__ */ new Map();
+for (const field of /* @__PURE__ */ new Set([
+  ...Object.keys(statusNames),
+  ...excludedVehicleStatusFields,
+  ...booleanStatusFields,
+  ...Object.keys(statusRoles),
+  ...Object.keys(statusUnits),
+  ...Object.keys(statusScales)
+])) {
+  canonicalStatusFieldNames.set(field.toLowerCase(), field);
+}
 const chargingBooleanFields = /* @__PURE__ */ new Set([
   "ccuEleccLckCtrlDspCmd",
   "ccuOffBdChrgrPlugOn",
@@ -1059,10 +1072,31 @@ function calculateRealtimePower(rawCurrent, rawVoltage) {
 }
 function getChargingManagementFields(fields) {
   const entries = Object.entries(fields);
-  if (!Object.hasOwn(fields, "realtimePower")) {
+  if (!entries.some(([field]) => field.toLowerCase() === "realtimepower")) {
     entries.push(["realtimePower", 0]);
   }
   return entries;
+}
+function resolveChargingFieldIds(fieldNames, existingFieldIds) {
+  var _a;
+  const existingIdsByName = /* @__PURE__ */ new Map();
+  for (const fieldId of existingFieldIds) {
+    const name = fieldId.toLowerCase();
+    if (!existingIdsByName.has(name)) {
+      existingIdsByName.set(name, fieldId);
+    }
+  }
+  const seenNames = /* @__PURE__ */ new Set();
+  const resolvedIds = [];
+  for (const fieldName of fieldNames) {
+    const name = fieldName.toLowerCase();
+    if (seenNames.has(name)) {
+      continue;
+    }
+    seenNames.add(name);
+    resolvedIds.push([fieldName, (_a = existingIdsByName.get(name)) != null ? _a : fieldName]);
+  }
+  return resolvedIds;
 }
 function getChargingStatisticsFields(fields) {
   const entries = Object.entries(fields).filter(([key]) => key !== "batteryAvailableEnergy");
@@ -1095,50 +1129,56 @@ function toFiniteNumber(value) {
 function isValidBatteryEnergy(value) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
+function resolveVehicleStatusFieldName(key) {
+  var _a;
+  return (_a = canonicalStatusFieldNames.get(key.toLowerCase())) != null ? _a : key;
+}
 function getVehicleStatusMetadata(key) {
   var _a, _b;
-  const name = (_a = statusNames[key]) != null ? _a : Object.fromEntries(
+  const canonicalKey = resolveVehicleStatusFieldName(key);
+  const name = (_a = statusNames[canonicalKey]) != null ? _a : Object.fromEntries(
     ["en", "de", "ru", "pt", "nl", "fr", "it", "es", "pl", "uk", "zh-cn"].map((language) => [
       language,
-      key
+      canonicalKey
     ])
   );
-  if (key === "statusTime") {
+  if (canonicalKey === "statusTime") {
     return { type: "number", role: "date", name };
   }
-  if (booleanStatusFields.has(key)) {
+  if (booleanStatusFields.has(canonicalKey)) {
     return {
       type: "boolean",
-      role: key.endsWith("Door") ? "sensor.door" : key.endsWith("Window") ? "sensor.window" : "indicator",
+      role: canonicalKey.endsWith("Door") ? "sensor.door" : canonicalKey.endsWith("Window") ? "sensor.window" : "indicator",
       name
     };
   }
   return {
     type: "number",
-    role: (_b = statusRoles[key]) != null ? _b : "value",
+    role: (_b = statusRoles[canonicalKey]) != null ? _b : "value",
     name,
-    ...statusUnits[key] ? { unit: statusUnits[key] } : {}
+    ...statusUnits[canonicalKey] ? { unit: statusUnits[canonicalKey] } : {}
   };
 }
 function normalizeVehicleStatusValue(key, value) {
-  if (key === "statusTime") {
+  const canonicalKey = resolveVehicleStatusFieldName(key);
+  if (canonicalKey === "statusTime") {
     return value * 1e3;
   }
-  if (booleanStatusFields.has(key) && (value === 0 || value === 1)) {
+  if (booleanStatusFields.has(canonicalKey) && (value === 0 || value === 1)) {
     return value === 1;
   }
-  if (key === "gpsLatitude" || key === "gpsLongitude") {
+  if (canonicalKey === "gpsLatitude" || canonicalKey === "gpsLongitude") {
     if (value === -128) {
       return void 0;
     }
-    const coordinate = value * statusScales[key].factor;
-    const maximum = key === "gpsLatitude" ? 90 : 180;
+    const coordinate = value * statusScales[canonicalKey].factor;
+    const maximum = canonicalKey === "gpsLatitude" ? 90 : 180;
     if (!Number.isFinite(coordinate) || coordinate < -maximum || coordinate > maximum) {
       return void 0;
     }
-    return Number(coordinate.toFixed(statusScales[key].precision));
+    return Number(coordinate.toFixed(statusScales[canonicalKey].precision));
   }
-  const scale = statusScales[key];
+  const scale = statusScales[canonicalKey];
   return scale ? Number((value * scale.factor).toFixed(scale.precision)) : value;
 }
 function shouldDeleteUnavailableStatusValue(key) {
@@ -1163,8 +1203,10 @@ function resolveOdometerValue(liveValue, cachedValue) {
   indexVehicleStatusFieldIds,
   normalizeChargingValue,
   normalizeVehicleStatusValue,
+  resolveChargingFieldIds,
   resolveOdometerValue,
   resolveVehicleStatusFieldId,
+  resolveVehicleStatusFieldName,
   shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue
 });

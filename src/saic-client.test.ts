@@ -300,10 +300,10 @@ describe('SaicApiClient vehicle status', () => {
 						data: {
 							statusTime: 1_700_000_000,
 							basicVehicleStatus: {
-								batteryVoltage: 142,
+								BATTERYVOLTAGE: 142,
 								extendedData1: 63,
 								fuelLevelPrc: 0,
-								mileage: -128,
+								MILEAGE: -128,
 								remoteClimateStatus: 2,
 								vehicleAlarmStatus: 1,
 								wheelTyreMonitorStatus: 2,
@@ -411,8 +411,8 @@ describe('SaicApiClient vehicle status', () => {
 			onlineStatus: 1,
 			basicVehicleStatus: {
 				'safe-key_1': 8,
-				LOCKSTATUS: 1,
-				GPSLATITUDE: 9,
+				lockStatus: 1,
+				gpsLatitude: 9,
 				speed: 20,
 				gpsAltitude: 18,
 			},

@@ -939,8 +939,28 @@ class MgSaic extends utils.Adapter {
     }
   }
   async createVehicleChargingObjects(vin, charging, series) {
+    var _a, _b;
     await this.ensureVehicleChargingGroups(vin);
     const rootId = `vehicles.${vin}.status.charging`;
+    const existingObjects = await this.getObjectListAsync({
+      startkey: `${this.namespace}.${rootId}.`,
+      endkey: `${this.namespace}.${rootId}.\u9999`
+    });
+    const existingFieldIds = new Map(chargingGroups.map(({ id }) => [id, []]));
+    for (const { id: objectId, value: object } of existingObjects.rows) {
+      if (object.type !== "state") {
+        continue;
+      }
+      const group = chargingGroups.find(({ id }) => objectId.startsWith(`${this.namespace}.${rootId}.${id}.`));
+      if (!group) {
+        continue;
+      }
+      const prefix = `${this.namespace}.${rootId}.${group.id}.`;
+      const fieldId = objectId.slice(prefix.length);
+      if (fieldId && !fieldId.includes(".")) {
+        (_a = existingFieldIds.get(group.id)) == null ? void 0 : _a.push(fieldId);
+      }
+    }
     for (const { source, id } of chargingGroups) {
       const groupId = `${rootId}.${id}`;
       const excludedFields = id === "session" ? import_status_metadata.excludedChargingSessionFields : import_status_metadata.excludedChargingStatisticsFields;
@@ -948,10 +968,16 @@ class MgSaic extends utils.Adapter {
       for (const field of excludedFields) {
         await this.delObjectAsync(`${groupId}.${field}`);
       }
-      for (const [field, value] of fields) {
+      const valuesByField = new Map(fields);
+      const resolvedFieldIds = (0, import_status_metadata.resolveChargingFieldIds)(
+        fields.map(([field]) => field),
+        (_b = existingFieldIds.get(id)) != null ? _b : []
+      );
+      for (const [responseField, field] of resolvedFieldIds) {
         if (this.stopping) {
           return;
         }
+        const value = valuesByField.get(responseField);
         if (excludedFields.some((excludedField) => excludedField === field)) {
           await this.delObjectAsync(`${groupId}.${field}`);
           continue;

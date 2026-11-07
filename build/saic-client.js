@@ -31,6 +31,7 @@ module.exports = __toCommonJS(saic_client_exports);
 var import_node_crypto = require("node:crypto");
 var import_node_timers = require("node:timers");
 var import_saic_crypto = require("./saic-crypto");
+var import_status_metadata = require("./status-metadata");
 function getClimateTemperatureRange(series) {
   if (series == null ? void 0 : series.startsWith("EH32")) {
     return { min: 17, max: 31 };
@@ -1057,10 +1058,11 @@ class SaicApiClient {
       seenStatusFields.add(canonicalField);
       return true;
     };
-    for (const [field, value] of Object.entries(rawStatus)) {
-      if (!acceptStatusField(field, field)) {
+    for (const [apiField, value] of Object.entries(rawStatus)) {
+      if (!acceptStatusField(apiField, apiField)) {
         continue;
       }
+      const field = (0, import_status_metadata.resolveVehicleStatusFieldName)(apiField);
       if (typeof value === "number" && Number.isFinite(value) && value !== -128) {
         setOwnRecordField(basicVehicleStatus, field, value);
         acceptedFields.push(field);
@@ -1080,14 +1082,16 @@ class SaicApiClient {
             ignoredFields.push(INVALID_API_FIELD_NAME);
             continue;
           }
-          if (field === "position" && value && typeof value === "object" && !Array.isArray(value)) {
+          if (field.toLowerCase() === "position" && value && typeof value === "object" && !Array.isArray(value)) {
             for (const [positionField, positionValue] of Object.entries(value)) {
               const positionSource = `${source}.${positionField}`;
               if (!isSafeApiIdSegment(positionField)) {
                 ignoredFields.push(INVALID_API_FIELD_NAME);
                 continue;
               }
-              const statusField2 = `gps${positionField[0].toUpperCase()}${positionField.slice(1)}`;
+              const statusField2 = (0, import_status_metadata.resolveVehicleStatusFieldName)(
+                `gps${positionField[0].toUpperCase()}${positionField.slice(1)}`
+              );
               if (!acceptStatusField(statusField2, positionSource)) {
                 continue;
               }
@@ -1101,7 +1105,9 @@ class SaicApiClient {
             }
             continue;
           }
-          const statusField = field === "speed" ? "speed" : `gps${field[0].toUpperCase()}${field.slice(1)}`;
+          const statusField = (0, import_status_metadata.resolveVehicleStatusFieldName)(
+            field.toLowerCase() === "speed" ? "speed" : `gps${field[0].toUpperCase()}${field.slice(1)}`
+          );
           if (!acceptStatusField(statusField, source)) {
             continue;
           }

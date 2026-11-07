@@ -29,6 +29,7 @@ import {
 	getVehicleStatusGroup,
 	getVehicleStatusMetadata,
 	getChargingSettingFeedback,
+	resolveChargingFieldIds,
 	calculateRealtimePower,
 	getChargingFieldMetadata,
 	getChargingManagementFields,
@@ -1046,6 +1047,25 @@ class MgSaic extends utils.Adapter {
 	): Promise<void> {
 		await this.ensureVehicleChargingGroups(vin);
 		const rootId = `vehicles.${vin}.status.charging`;
+		const existingObjects = await this.getObjectListAsync({
+			startkey: `${this.namespace}.${rootId}.`,
+			endkey: `${this.namespace}.${rootId}.\u9999`,
+		});
+		const existingFieldIds = new Map<string, string[]>(chargingGroups.map(({ id }) => [id, []]));
+		for (const { id: objectId, value: object } of existingObjects.rows) {
+			if (object.type !== 'state') {
+				continue;
+			}
+			const group = chargingGroups.find(({ id }) => objectId.startsWith(`${this.namespace}.${rootId}.${id}.`));
+			if (!group) {
+				continue;
+			}
+			const prefix = `${this.namespace}.${rootId}.${group.id}.`;
+			const fieldId = objectId.slice(prefix.length);
+			if (fieldId && !fieldId.includes('.')) {
+				existingFieldIds.get(group.id)?.push(fieldId);
+			}
+		}
 		for (const { source, id } of chargingGroups) {
 			const groupId = `${rootId}.${id}`;
 			const excludedFields = id === 'session' ? excludedChargingSessionFields : excludedChargingStatisticsFields;
@@ -1056,10 +1076,16 @@ class MgSaic extends utils.Adapter {
 			for (const field of excludedFields) {
 				await this.delObjectAsync(`${groupId}.${field}`);
 			}
-			for (const [field, value] of fields) {
+			const valuesByField = new Map(fields);
+			const resolvedFieldIds = resolveChargingFieldIds(
+				fields.map(([field]) => field),
+				existingFieldIds.get(id) ?? [],
+			);
+			for (const [responseField, field] of resolvedFieldIds) {
 				if (this.stopping) {
 					return;
 				}
+				const value = valuesByField.get(responseField);
 				if (excludedFields.some(excludedField => excludedField === field)) {
 					await this.delObjectAsync(`${groupId}.${field}`);
 					continue;
