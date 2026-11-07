@@ -42,6 +42,8 @@ import {
 	resolveOdometerValue,
 	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
+	indexVehicleStatusFieldIds,
+	resolveVehicleStatusFieldId,
 } from './status-metadata';
 import { getChargingFieldName, getRuntimeName } from './runtime-translations';
 
@@ -172,6 +174,7 @@ class MgSaic extends utils.Adapter {
 	private accessToken?: string;
 	private accessTokenExpiresAt = 0;
 	private vehicles: SaicVehicle[] = [];
+	private readonly vehicleStatusFieldIds = new Map<string, Map<string, string>>();
 	private readonly lastStatusTimes = new Map<string, number>();
 	private readonly lastCanonicalStatusTimes = new Map<string, number>();
 	private readonly vehicleCommandsInProgress = new Set<string>();
@@ -431,7 +434,7 @@ class MgSaic extends utils.Adapter {
 							const details = error instanceof Error ? error.message : 'Unknown error';
 							const diagnostic =
 								error instanceof SaicRemoteInstructionError
-									? `SAIC/MG returned remote instruction code 4 for ${vehicle.vin}; this is a response from the MG/SAIC service or vehicle, not an adapter parsing/processing error. SAIC message: ${details}`
+									? `SAIC/MG returned remote instruction code 4 for ${vehicle.vin}; this is a response from the MG/SAIC service or vehicle, not an adapter parsing/processing error. Diagnostic: ${details}`
 									: details;
 							statusErrors.push(`Vehicle status request failed for ${vehicle.vin}: ${diagnostic}`);
 							this.log.warn(
@@ -896,6 +899,24 @@ class MgSaic extends utils.Adapter {
 		}
 	}
 
+	private async getVehicleStatusFieldIds(channelId: string): Promise<Map<string, string>> {
+		const cachedIds = this.vehicleStatusFieldIds.get(channelId);
+		if (cachedIds) {
+			return cachedIds;
+		}
+		const objectIdPrefix = `${this.namespace}.${channelId}.`;
+		const objects = await this.getObjectListAsync({
+			startkey: objectIdPrefix,
+			endkey: `${objectIdPrefix}\u9999`,
+		});
+		const stateIds = objects.rows
+			.filter(row => row.value.type === 'state' && row.id.startsWith(`${this.namespace}.`))
+			.map(row => row.id.slice(this.namespace.length + 1));
+		const fieldIds = indexVehicleStatusFieldIds(stateIds, channelId);
+		this.vehicleStatusFieldIds.set(channelId, fieldIds);
+		return fieldIds;
+	}
+
 	private async createVehicleStatusObjects(
 		vin: string,
 		status: SaicVehicleStatus,
@@ -909,10 +930,6 @@ class MgSaic extends utils.Adapter {
 			return;
 		}
 		const statusId = `vehicles.${vin}.${channel}`;
-		for (const key of excludedVehicleStatusFields) {
-			const stateId = `${statusId}.${getVehicleStatusGroup(key)}.${key}`;
-			await this.delObjectAsync(stateId);
-		}
 		await this.setObjectNotExistsAsync(statusId, {
 			type: 'channel',
 			common: { name: getRuntimeName(channelName) },
@@ -921,6 +938,11 @@ class MgSaic extends utils.Adapter {
 		await this.extendObjectAsync(statusId, { common: { name: getRuntimeName(channelName) } });
 		if (this.stopping) {
 			return;
+		}
+		const fieldIds = await this.getVehicleStatusFieldIds(statusId);
+		for (const key of excludedVehicleStatusFields) {
+			const stateId = resolveVehicleStatusFieldId(fieldIds, statusId, getVehicleStatusGroup(key), key);
+			await this.delObjectAsync(stateId);
 		}
 
 		const values: Record<string, number | undefined> = { ...status.basicVehicleStatus };
@@ -935,15 +957,19 @@ class MgSaic extends utils.Adapter {
 			if (this.stopping) {
 				return;
 			}
-			if (excludedVehicleStatusFields.some(excludedKey => excludedKey === key)) {
-				await this.delObjectAsync(`${statusId}.${getVehicleStatusGroup(key)}.${key}`);
+			const stateId = resolveVehicleStatusFieldId(fieldIds, statusId, getVehicleStatusGroup(key), key);
+			const separator = stateId.lastIndexOf('.');
+			const fieldName = stateId.slice(separator + 1);
+			const groupId = stateId.slice(0, separator);
+			const group = groupId.slice(statusId.length + 1);
+			if (
+				excludedVehicleStatusFields.some(excludedKey => excludedKey.toLowerCase() === fieldName.toLowerCase())
+			) {
+				await this.delObjectAsync(stateId);
 				continue;
 			}
-			const group = getVehicleStatusGroup(key);
-			const groupId = `${statusId}.${group}`;
-			const stateId = `${groupId}.${key}`;
 			if (value === undefined) {
-				if (shouldDeleteUnavailableStatusValue(key)) {
+				if (shouldDeleteUnavailableStatusValue(fieldName)) {
 					await this.delObjectAsync(stateId);
 				} else {
 					const previousState = await this.getStateAsync(stateId);
@@ -953,7 +979,7 @@ class MgSaic extends utils.Adapter {
 				}
 				continue;
 			}
-			const normalizedValue = normalizeVehicleStatusValue(key, value);
+			const normalizedValue = normalizeVehicleStatusValue(fieldName, value);
 			if (normalizedValue === undefined) {
 				await this.delObjectAsync(stateId);
 				continue;
@@ -967,7 +993,7 @@ class MgSaic extends utils.Adapter {
 			if (this.stopping) {
 				return;
 			}
-			const metadata = getVehicleStatusMetadata(key);
+			const metadata = getVehicleStatusMetadata(fieldName);
 			const common = {
 				name: metadata.name,
 				type: metadata.type,
@@ -997,9 +1023,9 @@ class MgSaic extends utils.Adapter {
 				return;
 			}
 			const seatSetting =
-				key === 'frontLeftSeatHeatLevel'
+				fieldName === 'frontLeftSeatHeatLevel'
 					? 'driverSeatHeatLevel'
-					: key === 'frontRightSeatHeatLevel'
+					: fieldName === 'frontRightSeatHeatLevel'
 						? 'passengerSeatHeatLevel'
 						: undefined;
 			if (seatSetting && Number.isInteger(value) && value >= 0 && value <= 3) {
@@ -1009,7 +1035,7 @@ class MgSaic extends utils.Adapter {
 					await this.setStateAsync(settingId, { val: value, ack: true });
 				}
 			}
-			await this.delObjectAsync(`${statusId}.${key}`);
+			await this.delObjectAsync(`${statusId}.${fieldName}`);
 		}
 	}
 

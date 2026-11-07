@@ -77,6 +77,55 @@ export const excludedChargingSessionFields = [
 export const excludedChargingStatisticsFields = ['fuelRangeElec', 'mileage'] as const;
 
 /**
+ * Index existing status state IDs by case-insensitive field name.
+ *
+ * @param stateIds Existing instance-relative status state IDs.
+ * @param channelId The status channel containing the state IDs.
+ */
+export function indexVehicleStatusFieldIds(stateIds: Iterable<string>, channelId: string): Map<string, string> {
+	const prefix = `${channelId}.`;
+	const result = new Map<string, string>();
+	for (const stateId of stateIds) {
+		if (!stateId.startsWith(prefix)) {
+			continue;
+		}
+		const parts = stateId.slice(prefix.length).split('.');
+		if (parts.length !== 2) {
+			continue;
+		}
+		const key = parts[1].toLowerCase();
+		const existing = result.get(key);
+		if (existing === undefined || stateId < existing) {
+			result.set(key, stateId);
+		}
+	}
+	return result;
+}
+
+/**
+ * Resolve a field to its existing ID, or cache a new ID using the API's first-seen casing.
+ *
+ * @param fieldIds Case-insensitive map of existing status field IDs.
+ * @param channelId The status channel containing the state.
+ * @param group The fallback functional group for new fields.
+ * @param field The API field name.
+ */
+export function resolveVehicleStatusFieldId(
+	fieldIds: Map<string, string>,
+	channelId: string,
+	group: VehicleStatusGroup,
+	field: string,
+): string {
+	const key = field.toLowerCase();
+	let stateId = fieldIds.get(key);
+	if (stateId === undefined) {
+		stateId = `${channelId}.${group}.${field}`;
+		fieldIds.set(key, stateId);
+	}
+	return stateId;
+}
+
+/**
  * Map confirmed SAIC charging fields to writable adapter setting values.
  *
  * @param fields Raw charging management fields returned by SAIC.

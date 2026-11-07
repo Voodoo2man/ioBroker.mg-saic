@@ -135,6 +135,7 @@ class MgSaic extends utils.Adapter {
   accessToken;
   accessTokenExpiresAt = 0;
   vehicles = [];
+  vehicleStatusFieldIds = /* @__PURE__ */ new Map();
   lastStatusTimes = /* @__PURE__ */ new Map();
   lastCanonicalStatusTimes = /* @__PURE__ */ new Map();
   vehicleCommandsInProgress = /* @__PURE__ */ new Set();
@@ -384,7 +385,7 @@ class MgSaic extends utils.Adapter {
               }
             } else {
               const details = error instanceof Error ? error.message : "Unknown error";
-              const diagnostic = error instanceof import_saic_client.SaicRemoteInstructionError ? `SAIC/MG returned remote instruction code 4 for ${vehicle.vin}; this is a response from the MG/SAIC service or vehicle, not an adapter parsing/processing error. SAIC message: ${details}` : details;
+              const diagnostic = error instanceof import_saic_client.SaicRemoteInstructionError ? `SAIC/MG returned remote instruction code 4 for ${vehicle.vin}; this is a response from the MG/SAIC service or vehicle, not an adapter parsing/processing error. Diagnostic: ${details}` : details;
               statusErrors.push(`Vehicle status request failed for ${vehicle.vin}: ${diagnostic}`);
               this.log.warn(
                 `Could not retrieve current status for vehicle ${vehicle.vin}: ${diagnostic}`
@@ -814,6 +815,21 @@ class MgSaic extends utils.Adapter {
       this.vehicleCommandsInProgress.delete(vin);
     }
   }
+  async getVehicleStatusFieldIds(channelId) {
+    const cachedIds = this.vehicleStatusFieldIds.get(channelId);
+    if (cachedIds) {
+      return cachedIds;
+    }
+    const objectIdPrefix = `${this.namespace}.${channelId}.`;
+    const objects = await this.getObjectListAsync({
+      startkey: objectIdPrefix,
+      endkey: `${objectIdPrefix}\u9999`
+    });
+    const stateIds = objects.rows.filter((row) => row.value.type === "state" && row.id.startsWith(`${this.namespace}.`)).map((row) => row.id.slice(this.namespace.length + 1));
+    const fieldIds = (0, import_status_metadata.indexVehicleStatusFieldIds)(stateIds, channelId);
+    this.vehicleStatusFieldIds.set(channelId, fieldIds);
+    return fieldIds;
+  }
   async createVehicleStatusObjects(vin, status, channel = "status", channelName = "currentStatus") {
     if (this.stopping) {
       return;
@@ -822,10 +838,6 @@ class MgSaic extends utils.Adapter {
       return;
     }
     const statusId = `vehicles.${vin}.${channel}`;
-    for (const key of import_status_metadata.excludedVehicleStatusFields) {
-      const stateId = `${statusId}.${(0, import_status_metadata.getVehicleStatusGroup)(key)}.${key}`;
-      await this.delObjectAsync(stateId);
-    }
     await this.setObjectNotExistsAsync(statusId, {
       type: "channel",
       common: { name: (0, import_runtime_translations.getRuntimeName)(channelName) },
@@ -834,6 +846,11 @@ class MgSaic extends utils.Adapter {
     await this.extendObjectAsync(statusId, { common: { name: (0, import_runtime_translations.getRuntimeName)(channelName) } });
     if (this.stopping) {
       return;
+    }
+    const fieldIds = await this.getVehicleStatusFieldIds(statusId);
+    for (const key of import_status_metadata.excludedVehicleStatusFields) {
+      const stateId = (0, import_status_metadata.resolveVehicleStatusFieldId)(fieldIds, statusId, (0, import_status_metadata.getVehicleStatusGroup)(key), key);
+      await this.delObjectAsync(stateId);
     }
     const values = { ...status.basicVehicleStatus };
     if (status.statusTime !== void 0) {
@@ -847,15 +864,17 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
-      if (import_status_metadata.excludedVehicleStatusFields.some((excludedKey) => excludedKey === key)) {
-        await this.delObjectAsync(`${statusId}.${(0, import_status_metadata.getVehicleStatusGroup)(key)}.${key}`);
+      const stateId = (0, import_status_metadata.resolveVehicleStatusFieldId)(fieldIds, statusId, (0, import_status_metadata.getVehicleStatusGroup)(key), key);
+      const separator = stateId.lastIndexOf(".");
+      const fieldName = stateId.slice(separator + 1);
+      const groupId = stateId.slice(0, separator);
+      const group = groupId.slice(statusId.length + 1);
+      if (import_status_metadata.excludedVehicleStatusFields.some((excludedKey) => excludedKey.toLowerCase() === fieldName.toLowerCase())) {
+        await this.delObjectAsync(stateId);
         continue;
       }
-      const group = (0, import_status_metadata.getVehicleStatusGroup)(key);
-      const groupId = `${statusId}.${group}`;
-      const stateId = `${groupId}.${key}`;
       if (value === void 0) {
-        if ((0, import_status_metadata.shouldDeleteUnavailableStatusValue)(key)) {
+        if ((0, import_status_metadata.shouldDeleteUnavailableStatusValue)(fieldName)) {
           await this.delObjectAsync(stateId);
         } else {
           const previousState = await this.getStateAsync(stateId);
@@ -865,7 +884,7 @@ class MgSaic extends utils.Adapter {
         }
         continue;
       }
-      const normalizedValue = (0, import_status_metadata.normalizeVehicleStatusValue)(key, value);
+      const normalizedValue = (0, import_status_metadata.normalizeVehicleStatusValue)(fieldName, value);
       if (normalizedValue === void 0) {
         await this.delObjectAsync(stateId);
         continue;
@@ -879,7 +898,7 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
-      const metadata = (0, import_status_metadata.getVehicleStatusMetadata)(key);
+      const metadata = (0, import_status_metadata.getVehicleStatusMetadata)(fieldName);
       const common = {
         name: metadata.name,
         type: metadata.type,
@@ -908,7 +927,7 @@ class MgSaic extends utils.Adapter {
       if (this.stopping) {
         return;
       }
-      const seatSetting = key === "frontLeftSeatHeatLevel" ? "driverSeatHeatLevel" : key === "frontRightSeatHeatLevel" ? "passengerSeatHeatLevel" : void 0;
+      const seatSetting = fieldName === "frontLeftSeatHeatLevel" ? "driverSeatHeatLevel" : fieldName === "frontRightSeatHeatLevel" ? "passengerSeatHeatLevel" : void 0;
       if (seatSetting && Number.isInteger(value) && value >= 0 && value <= 3) {
         const settingId = vehicleCommandPath(vin, seatSetting);
         const settingState = await this.getStateAsync(settingId);
@@ -916,7 +935,7 @@ class MgSaic extends utils.Adapter {
           await this.setStateAsync(settingId, { val: value, ack: true });
         }
       }
-      await this.delObjectAsync(`${statusId}.${key}`);
+      await this.delObjectAsync(`${statusId}.${fieldName}`);
     }
   }
   async createVehicleChargingObjects(vin, charging, series) {

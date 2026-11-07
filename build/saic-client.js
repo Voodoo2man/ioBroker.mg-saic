@@ -67,6 +67,18 @@ const INVALID_API_FIELD_NAME = "<invalid field name>";
 function isSafeApiIdSegment(value) {
   return value.length > 0 && value.length <= 64 && !UNSAFE_API_ID_SEGMENT_CHARACTER.test(value) && !UNSAFE_API_ID_SEGMENT_NAMES.has(value.toLowerCase());
 }
+function formatSaicResponseCode(code) {
+  if (typeof code === "number" && Number.isSafeInteger(code)) {
+    return String(code);
+  }
+  if (typeof code === "string" && /^-?\d{1,15}$/.test(code.trim())) {
+    const numericCode = Number(code);
+    if (Number.isSafeInteger(numericCode)) {
+      return String(numericCode);
+    }
+  }
+  return "unknown";
+}
 function formatApiObjectKeys(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return "unavailable";
@@ -231,7 +243,7 @@ class SaicApiClient {
       throw new Error("SAIC login returned an invalid response");
     }
     if (Number(envelope.code) !== 0) {
-      throw new Error(envelope.message || "SAIC login was rejected");
+      throw new Error(`SAIC login was rejected with code ${formatSaicResponseCode(envelope.code)}`);
     }
     const accessToken = (_a = envelope.data) == null ? void 0 : _a.access_token;
     const expiresIn = (_b = envelope.data) == null ? void 0 : _b.expires_in;
@@ -303,7 +315,9 @@ class SaicApiClient {
       throw new Error("SAIC vehicle list returned an invalid response");
     }
     if (Number(envelope.code) !== 0) {
-      throw new Error(envelope.message || "SAIC vehicle list request was rejected");
+      throw new Error(
+        `SAIC vehicle list request was rejected with code ${formatSaicResponseCode(envelope.code)}`
+      );
     }
     if (!Array.isArray((_a = envelope.data) == null ? void 0 : _a.vinList)) {
       throw new Error("SAIC vehicle list response did not contain a vehicle list");
@@ -454,7 +468,7 @@ class SaicApiClient {
       const returnCode = Number(envelope.code);
       const nextEventId = result.response.headers.get("event-id");
       this.debug(
-        `GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId != null ? nextEventId : "none"}`
+        `GET ${requestPath} for ${vin} returned SAIC code ${formatSaicResponseCode(envelope.code)}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId != null ? nextEventId : "none"}`
       );
       if (returnCode === 401 || returnCode === 403) {
         throw new SaicHttpError(`SAIC rejected charging status with code ${returnCode}`, returnCode);
@@ -462,7 +476,7 @@ class SaicApiClient {
       if (![2, 3, 7].includes(returnCode) && (Boolean(nextEventId) && envelope.data === void 0 || returnCode !== 0 && eventId !== "0")) {
         if (this.monotonicNow() >= deadline) {
           throw new Error(
-            envelope.message || "SAIC charging status timed out while waiting for vehicle data"
+            `SAIC charging status timed out while waiting for vehicle data (code ${formatSaicResponseCode(envelope.code)})`
           );
         }
         await this.wait(Math.min(3e3, Math.max(0, deadline - this.monotonicNow())), signal);
@@ -472,12 +486,12 @@ class SaicApiClient {
         continue;
       }
       if (returnCode !== 0) {
-        throw new Error(envelope.message || `SAIC charging status failed with code ${returnCode}`);
+        throw new Error(`SAIC charging status failed with code ${formatSaicResponseCode(envelope.code)}`);
       }
       const chargingData = envelope.data;
       if (!chargingData || typeof chargingData !== "object" || Array.isArray(chargingData)) {
         throw new Error(
-          `SAIC charging status response did not contain data (code: ${String(envelope.code)}, event-id: ${nextEventId != null ? nextEventId : "none"})`
+          `SAIC charging status response did not contain data (code: ${formatSaicResponseCode(envelope.code)}, event-id: ${nextEventId != null ? nextEventId : "none"})`
         );
       }
       const parseFields = (value, reservedFields) => {
@@ -649,14 +663,14 @@ class SaicApiClient {
         throw new SaicHttpError(`SAIC rejected vehicle command with code ${returnCode}`, returnCode);
       }
       if ([2, 3, 7].includes(returnCode)) {
-        throw new Error(envelope.message || `SAIC rejected vehicle command with code ${returnCode}`);
+        throw new Error(`SAIC rejected vehicle command with code ${formatSaicResponseCode(envelope.code)}`);
       }
       if (nextEventId && envelope.data === void 0) {
         eventId = nextEventId;
       } else if (returnCode !== 0 && eventId !== "0") {
         eventId = nextEventId != null ? nextEventId : eventId;
       } else if (returnCode !== 0) {
-        throw new Error(envelope.message || `SAIC rejected vehicle command with code ${returnCode}`);
+        throw new Error(`SAIC rejected vehicle command with code ${formatSaicResponseCode(envelope.code)}`);
       } else if (envelope.data !== void 0) {
         return;
       } else if (!nextEventId) {
@@ -976,9 +990,8 @@ class SaicApiClient {
       }
       responseHeaders = response.headers;
       const nextEventId = response.headers.get("event-id");
-      const responseMessage = typeof envelope.message === "string" ? envelope.message.replace(/[\r\n\t]/g, " ").slice(0, 200) : "none";
       this.debug(
-        `GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, message: ${responseMessage}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId != null ? nextEventId : "none"}`
+        `GET ${requestPath} for ${vin} returned SAIC code ${formatSaicResponseCode(envelope.code)}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId != null ? nextEventId : "none"}`
       );
       const returnCode = Number(envelope.code);
       if (returnCode === 401 || returnCode === 403) {
@@ -987,7 +1000,7 @@ class SaicApiClient {
       if (useEventId && ![2, 3, 7].includes(returnCode) && (Boolean(nextEventId) && envelope.data === void 0 || returnCode !== 0 && eventId !== "0")) {
         if (this.monotonicNow() >= deadline) {
           throw new RetryableVehicleStatusError(
-            envelope.message || "SAIC vehicle status timed out while waiting for vehicle data"
+            `SAIC vehicle status timed out while waiting for vehicle data (code ${formatSaicResponseCode(envelope.code)})`
           );
         }
         await this.wait(Math.min(3e3, Math.max(0, deadline - this.monotonicNow())), signal);
@@ -997,9 +1010,7 @@ class SaicApiClient {
         continue;
       }
       if (returnCode === 4) {
-        throw new SaicRemoteInstructionError(
-          envelope.message || "SAIC could not execute the remote vehicle request"
-        );
+        throw new SaicRemoteInstructionError("SAIC could not execute the remote vehicle request (code 4)");
       }
       if (useEventId && returnCode === 0 && envelope.data === void 0 && this.monotonicNow() >= deadline) {
         throw new RetryableVehicleStatusError("SAIC vehicle status timed out while waiting for vehicle data");
@@ -1007,7 +1018,11 @@ class SaicApiClient {
       break;
     }
     if (Number(envelope.code) !== 0) {
-      throw new Error(envelope.message || "SAIC vehicle status request was rejected");
+      const responseCode = formatSaicResponseCode(envelope.code);
+      if (Number(envelope.code) === 1) {
+        throw new Error(`SAIC vehicle status request timed out with code ${responseCode}`);
+      }
+      throw new Error(`SAIC vehicle status request was rejected with code ${responseCode}`);
     }
     if (!((_a = envelope.data) == null ? void 0 : _a.basicVehicleStatus) || typeof envelope.data.basicVehicleStatus !== "object" || Array.isArray(envelope.data.basicVehicleStatus)) {
       const responseKeys = formatApiObjectKeys(envelope);
@@ -1015,10 +1030,10 @@ class SaicApiClient {
       const dataType = envelope.data === null ? "null" : Array.isArray(envelope.data) ? "array" : typeof envelope.data;
       const dataKeys = formatApiObjectKeys(envelope.data);
       this.debug(
-        `GET ${requestPath} for ${vin} status shape invalid: code ${String(envelope.code)}, data type ${dataType}, data keys ${dataKeys}`
+        `GET ${requestPath} for ${vin} status shape invalid: code ${formatSaicResponseCode(envelope.code)}, data type ${dataType}, data keys ${dataKeys}`
       );
       throw new Error(
-        `SAIC vehicle status response did not contain basic status data (code: ${String(envelope.code)}, response keys: ${responseKeys}, data type: ${dataType}, data keys: ${dataKeys}${responseEventId ? `, event-id: ${responseEventId}` : ""})`
+        `SAIC vehicle status response did not contain basic status data (code: ${formatSaicResponseCode(envelope.code)}, response keys: ${responseKeys}, data type: ${dataType}, data keys: ${dataKeys}${responseEventId ? `, event-id: ${responseEventId}` : ""})`
       );
     }
     if (envelope.data.statusTime !== void 0 && envelope.data.statusTime !== null && (typeof envelope.data.statusTime !== "number" || !isVehicleStatusTimestampValid(envelope.data.statusTime, this.now()))) {

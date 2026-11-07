@@ -106,6 +106,21 @@ describe('SaicApiClient login', () => {
 			expect((error as Error).message).to.equal('SAIC login failed with HTTP status 401');
 		}
 	});
+
+	it('does not expose localized cloud messages in login errors', async () => {
+		const cloudMessage = '登录失败';
+		const client = new SaicApiClient(() =>
+			Promise.resolve(new Response(JSON.stringify({ code: 1001, message: cloudMessage }))),
+		);
+
+		try {
+			await client.login(options);
+			expect.fail('Expected login rejection');
+		} catch (error) {
+			expect((error as Error).message).to.equal('SAIC login was rejected with code 1001');
+			expect((error as Error).message).not.to.contain(cloudMessage);
+		}
+	});
 });
 
 describe('Home Assistant control value mappings', () => {
@@ -197,6 +212,21 @@ describe('SaicApiClient vehicle list', () => {
 			expect.fail('Expected missing vinList to be rejected');
 		} catch (error) {
 			expect((error as Error).message).to.equal('SAIC vehicle list response did not contain a vehicle list');
+		}
+	});
+
+	it('does not expose localized cloud messages in vehicle-list errors', async () => {
+		const cloudMessage = '车辆列表不可用';
+		const client = new SaicApiClient(() =>
+			Promise.resolve(new Response(JSON.stringify({ code: 1002, message: cloudMessage }))),
+		);
+
+		try {
+			await client.listVehicles(options, 'test-access-token');
+			expect.fail('Expected vehicle-list rejection');
+		} catch (error) {
+			expect((error as Error).message).to.equal('SAIC vehicle list request was rejected with code 1002');
+			expect((error as Error).message).not.to.contain(cloudMessage);
 		}
 	});
 });
@@ -637,11 +667,14 @@ describe('SaicApiClient vehicle status', () => {
 		}
 	});
 
-	it('classifies SAIC code 4 as a remote instruction response', async () => {
+	it('classifies SAIC code 4 without exposing the cloud message', async () => {
+		const cloudMessage = '远程车辆指令失败';
+		const debugMessages: string[] = [];
 		const client = new SaicApiClient(
-			() => Promise.resolve(new Response('{"code":4,"message":"Remote instruction failed"}')),
+			() => Promise.resolve(new Response(JSON.stringify({ code: 4, message: cloudMessage }))),
 			Date.now,
 			() => Promise.resolve(),
+			message => debugMessages.push(message),
 		);
 
 		try {
@@ -649,7 +682,24 @@ describe('SaicApiClient vehicle status', () => {
 			expect.fail('Expected the remote instruction response to be rejected');
 		} catch (error) {
 			expect(error).to.be.instanceOf(SaicRemoteInstructionError);
-			expect((error as Error).message).to.equal('Remote instruction failed');
+			expect((error as Error).message).to.equal('SAIC could not execute the remote vehicle request (code 4)');
+			expect((error as Error).message).not.to.contain(cloudMessage);
+		}
+		expect(debugMessages.join('\n')).not.to.contain(cloudMessage);
+	});
+
+	it('reports command rejections in English using the response code', async () => {
+		const cloudMessage = '车辆控制失败';
+		const client = new SaicApiClient(() =>
+			Promise.resolve(new Response(JSON.stringify({ code: 42, message: cloudMessage }))),
+		);
+
+		try {
+			await client.sendVehicleCommand(options, 'test-access-token', 'LSJWH4095RN166487', 'lock');
+			expect.fail('Expected vehicle command rejection');
+		} catch (error) {
+			expect((error as Error).message).to.equal('SAIC rejected vehicle command with code 42');
+			expect((error as Error).message).not.to.contain(cloudMessage);
 		}
 	});
 
@@ -810,7 +860,7 @@ describe('SaicApiClient vehicle status', () => {
 			() =>
 				Promise.resolve(
 					new Response(
-						'{"code":0,"message":"success","data":{"basicVehicleStatus":{"batteryVoltage":142,"lockStatus":1}}}',
+						'{"code":0,"message":"状态已更新","data":{"basicVehicleStatus":{"batteryVoltage":142,"lockStatus":1}}}',
 					),
 				),
 			Date.now,
@@ -821,9 +871,10 @@ describe('SaicApiClient vehicle status', () => {
 		await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487');
 
 		expect(debugMessages.some(message => message.includes('SAIC code 0'))).to.equal(true);
-		expect(debugMessages.some(message => message.includes('message: success'))).to.equal(true);
+		expect(debugMessages.some(message => message.includes('message:'))).to.equal(false);
 		expect(debugMessages.some(message => message.includes('timeout 5000ms'))).to.equal(true);
 		expect(debugMessages.some(message => message.includes('batteryVoltage, lockStatus'))).to.equal(true);
+		expect(debugMessages.join('\n')).not.to.contain('状态已更新');
 		expect(debugMessages.join('\n')).not.to.contain('142');
 	});
 
@@ -1040,9 +1091,7 @@ describe('SaicApiClient vehicle status', () => {
 		const client = new SaicApiClient(
 			() => {
 				callCount += 1;
-				return Promise.resolve(
-					new Response('{"code":1,"message":"The request timed out, please try again later."}'),
-				);
+				return Promise.resolve(new Response('{"code":1,"message":"请求超时"}'));
 			},
 			Date.now,
 			() => Promise.resolve(),
@@ -1053,6 +1102,7 @@ describe('SaicApiClient vehicle status', () => {
 			expect.fail('Expected an initial timeout without event id to be rejected');
 		} catch (error) {
 			expect((error as Error).message).to.contain('timed out');
+			expect((error as Error).message).not.to.contain('请求超时');
 		}
 		expect(callCount).to.equal(1);
 	});
@@ -1077,7 +1127,7 @@ describe('SaicApiClient vehicle status', () => {
 				await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487');
 				expect.fail(`Expected SAIC code ${code} to be rejected`);
 			} catch (error) {
-				expect((error as Error).message).to.equal('rejected');
+				expect((error as Error).message).to.equal(`SAIC vehicle status request was rejected with code ${code}`);
 			}
 			expect(callCount).to.equal(1);
 			expect(waitDurations).to.deep.equal([]);
@@ -1121,7 +1171,7 @@ describe('SaicApiClient vehicle status', () => {
 		const client = new SaicApiClient(
 			() => {
 				callCount += 1;
-				return Promise.resolve(new Response('{"code":4,"message":"The remote control instruction failed."}'));
+				return Promise.resolve(new Response('{"code":4,"message":"远程车辆指令失败"}'));
 			},
 			Date.now,
 			() => Promise.resolve(),
@@ -1132,7 +1182,7 @@ describe('SaicApiClient vehicle status', () => {
 			expect.fail('Expected SAIC remote instruction failure');
 		} catch (error) {
 			expect(error).to.be.instanceOf(SaicRemoteInstructionError);
-			expect((error as Error).message).to.equal('The remote control instruction failed.');
+			expect((error as Error).message).to.equal('SAIC could not execute the remote vehicle request (code 4)');
 		}
 		expect(callCount).to.equal(1);
 	});
@@ -1273,7 +1323,7 @@ describe('SaicApiClient vehicle status', () => {
 				await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487');
 				expect.fail(`Expected SAIC code ${code} to be rejected`);
 			} catch (error) {
-				expect((error as Error).message).to.equal('rejected');
+				expect((error as Error).message).to.equal(`SAIC vehicle status request was rejected with code ${code}`);
 			}
 			expect(callCount).to.equal(2);
 			expect(waitDurations).to.deep.equal([3_000]);
@@ -1590,5 +1640,20 @@ describe('SaicApiClient charging status', () => {
 		});
 		expect(callCount).to.equal(2);
 		expect(eventIds).to.deep.equal(['0', 'charging-event-42']);
+	});
+
+	it('reports charging rejections in English using the response code', async () => {
+		const cloudMessage = '充电数据不可用';
+		const client = new SaicApiClient(() =>
+			Promise.resolve(new Response(JSON.stringify({ code: 42, message: cloudMessage }))),
+		);
+
+		try {
+			await client.getVehicleChargingStatus(options, 'test-access-token', 'LSJWH4095RN166487');
+			expect.fail('Expected charging status rejection');
+		} catch (error) {
+			expect((error as Error).message).to.equal('SAIC charging status failed with code 42');
+			expect((error as Error).message).not.to.contain(cloudMessage);
+		}
 	});
 });
