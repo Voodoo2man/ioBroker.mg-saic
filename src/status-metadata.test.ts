@@ -16,7 +16,33 @@ import {
 	resolveOdometerValue,
 	shouldApplySettingFeedback,
 	shouldDeleteUnavailableStatusValue,
+	indexVehicleStatusFieldIds,
+	resolveVehicleStatusFieldId,
 } from './status-metadata';
+
+describe('vehicle status field IDs', () => {
+	const statusId = 'vehicles.LSJWH4095RN166487.status';
+
+	it('reuses existing object IDs when API field casing changes', () => {
+		const fieldIds = indexVehicleStatusFieldIds(
+			[`${statusId}.driving.speed`, `${statusId}.general.SPEED`, `${statusId}.driving`],
+			statusId,
+		);
+
+		expect(resolveVehicleStatusFieldId(fieldIds, statusId, 'general', 'SPEED')).to.equal(
+			`${statusId}.driving.speed`,
+		);
+		expect(fieldIds.get('speed')).to.equal(`${statusId}.driving.speed`);
+	});
+
+	it('keeps first-seen casing stable for successive API responses', () => {
+		const fieldIds = indexVehicleStatusFieldIds([], statusId);
+		const firstId = resolveVehicleStatusFieldId(fieldIds, statusId, 'general', 'newField');
+
+		expect(resolveVehicleStatusFieldId(fieldIds, statusId, 'general', 'NEWFIELD')).to.equal(firstId);
+		expect([...fieldIds.keys()]).to.deep.equal(['newfield']);
+	});
+});
 
 describe('getVehicleStatusMetadata', () => {
 	it('reads confirmed charging settings from SAIC charging fields', () => {

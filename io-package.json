@@ -72,7 +72,7 @@
     "titleLang": {
       "en": "MG/SAIC",
       "de": "MG/SAIC",
-      "ru": "МГ/САИК",
+      "ru": "MG/SAIC",
       "pt": "MG/SAIC",
       "nl": "MG/SAIC",
       "fr": "MG/SAIC",
@@ -80,7 +80,7 @@
       "es": "MG/SAIC",
       "pl": "MG/SAIC",
       "uk": "MG/SAIC",
-      "zh-cn": "名爵/上汽"
+      "zh-cn": "MG/SAIC"
     },
     "desc": {
       "en": "Connect MG and SAIC vehicles to ioBroker through regional iSmart cloud APIs",

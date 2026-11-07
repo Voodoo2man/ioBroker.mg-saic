@@ -29,9 +29,11 @@ __export(status_metadata_exports, {
   getChargingStatisticsFields: () => getChargingStatisticsFields,
   getVehicleStatusGroup: () => getVehicleStatusGroup,
   getVehicleStatusMetadata: () => getVehicleStatusMetadata,
+  indexVehicleStatusFieldIds: () => indexVehicleStatusFieldIds,
   normalizeChargingValue: () => normalizeChargingValue,
   normalizeVehicleStatusValue: () => normalizeVehicleStatusValue,
   resolveOdometerValue: () => resolveOdometerValue,
+  resolveVehicleStatusFieldId: () => resolveVehicleStatusFieldId,
   shouldApplySettingFeedback: () => shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue: () => shouldDeleteUnavailableStatusValue
 });
@@ -68,6 +70,34 @@ const excludedChargingSessionFields = [
   "imcuVehElecRngV"
 ];
 const excludedChargingStatisticsFields = ["fuelRangeElec", "mileage"];
+function indexVehicleStatusFieldIds(stateIds, channelId) {
+  const prefix = `${channelId}.`;
+  const result = /* @__PURE__ */ new Map();
+  for (const stateId of stateIds) {
+    if (!stateId.startsWith(prefix)) {
+      continue;
+    }
+    const parts = stateId.slice(prefix.length).split(".");
+    if (parts.length !== 2) {
+      continue;
+    }
+    const key = parts[1].toLowerCase();
+    const existing = result.get(key);
+    if (existing === void 0 || stateId < existing) {
+      result.set(key, stateId);
+    }
+  }
+  return result;
+}
+function resolveVehicleStatusFieldId(fieldIds, channelId, group, field) {
+  const key = field.toLowerCase();
+  let stateId = fieldIds.get(key);
+  if (stateId === void 0) {
+    stateId = `${channelId}.${group}.${field}`;
+    fieldIds.set(key, stateId);
+  }
+  return stateId;
+}
 function getChargingSettingFeedback(fields) {
   const feedback = {};
   const currentLimit = fields.bmsAltngChrgCrntDspCmd;
@@ -1130,9 +1160,11 @@ function resolveOdometerValue(liveValue, cachedValue) {
   getChargingStatisticsFields,
   getVehicleStatusGroup,
   getVehicleStatusMetadata,
+  indexVehicleStatusFieldIds,
   normalizeChargingValue,
   normalizeVehicleStatusValue,
   resolveOdometerValue,
+  resolveVehicleStatusFieldId,
   shouldApplySettingFeedback,
   shouldDeleteUnavailableStatusValue
 });
