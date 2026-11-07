@@ -25,8 +25,7 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 1. Install the adapter and create an instance in ioBroker Admin.
 2. Select the account region and login type (email or phone number).
 3. Enter the account's email address or phone number and password. For phone login, also enter the phone country calling code.
-4. Set the status polling interval between 60 and 2147483 seconds. The default is 1800 seconds.
-	Existing instances configured below 60 seconds must be updated; otherwise startup validation prevents the adapter from connecting.
+4. Set the status polling interval >60 seconds. The default is 1800 seconds.
 5. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
 
 ## Features
