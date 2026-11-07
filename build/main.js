@@ -28,6 +28,7 @@ var import_config = require("./config");
 var import_saic_client = require("./saic-client");
 var import_regions = require("./regions");
 var import_refresh_command = require("./refresh-command");
+var import_refresh_poll_queue = require("./refresh-poll-queue");
 var import_pending_setting_edits = require("./pending-setting-edits");
 var import_status_metadata = require("./status-metadata");
 var import_runtime_translations = require("./runtime-translations");
@@ -119,8 +120,7 @@ class MgSaic extends utils.Adapter {
     this.on("unload", this.onUnload.bind(this));
   }
   pollTimer;
-  pollInProgress = false;
-  refreshQueued = false;
+  refreshPollQueue = new import_refresh_poll_queue.RefreshPollQueue();
   stopping = false;
   unloadCallbackCalled = false;
   abortController = new AbortController();
@@ -299,16 +299,14 @@ class MgSaic extends utils.Adapter {
     if (this.stopping || !this.client || !this.loginOptions || !this.accessToken) {
       return;
     }
-    if (this.pollInProgress) {
-      this.refreshQueued = true;
+    if (!this.refreshPollQueue.request()) {
       return;
     }
-    this.pollInProgress = true;
     const statusErrors = [];
     let followUpUsed = false;
     try {
       do {
-        this.refreshQueued = false;
+        this.refreshPollQueue.clearQueuedRefresh();
         for (const vehicle of this.vehicles) {
           if (this.stopping) {
             break;
@@ -478,17 +476,17 @@ class MgSaic extends utils.Adapter {
             this.log.error(`Could not write live status for ${vehicle.vin}: ${details}`);
           }
         }
-        if (this.refreshQueued && followUpUsed) {
-          this.refreshQueued = false;
-        } else if (this.refreshQueued) {
+        if (this.refreshPollQueue.hasQueuedRefresh && followUpUsed) {
+          this.refreshPollQueue.clearQueuedRefresh();
+        } else if (this.refreshPollQueue.hasQueuedRefresh) {
           followUpUsed = true;
         }
-      } while (this.refreshQueued && !this.stopping);
+      } while (this.refreshPollQueue.hasQueuedRefresh && !this.stopping);
       if (!this.stopping) {
         await this.setState("info.lastError", statusErrors.join("; "), true);
       }
     } finally {
-      this.pollInProgress = false;
+      this.refreshPollQueue.finish(this.stopping, () => this.triggerRefresh());
     }
   }
   onStateChange(id, state) {
@@ -1314,7 +1312,7 @@ class MgSaic extends utils.Adapter {
     this.unloadCallbackCalled = true;
     this.stopping = true;
     this.abortController.abort(new DOMException("Adapter is stopping", "AbortError"));
-    this.refreshQueued = false;
+    this.refreshPollQueue.clearQueuedRefresh();
     if (this.pollTimer) {
       this.clearInterval(this.pollTimer);
     }

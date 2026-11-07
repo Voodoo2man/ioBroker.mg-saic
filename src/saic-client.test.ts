@@ -163,6 +163,28 @@ describe('SaicApiClient vehicle list', () => {
 		expect(new Headers(requestInit?.headers).get('blade-auth')).to.equal('test-access-token');
 	});
 
+	it('keeps the first vehicle when VINs differ only by case', async () => {
+		const vin = 'LSJWH4099NS012345';
+		const client = new SaicApiClient(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						code: 0,
+						data: {
+							vinList: [
+								{ vin: `${vin}\n`, name: 'Invalid' },
+								{ vin, name: 'First' },
+								{ vin: vin.toLowerCase(), name: 'Duplicate' },
+							],
+						},
+					}),
+				),
+			),
+		);
+
+		expect(await client.listVehicles(options, 'test-access-token')).to.deep.equal([{ vin, name: 'First' }]);
+	});
+
 	it('rejects an unexpected vehicle-list response shape', async () => {
 		const client = new SaicApiClient(
 			() => Promise.resolve(new Response('{"code":0,"data":{}}')),
@@ -302,6 +324,74 @@ describe('SaicApiClient vehicle status', () => {
 		expect(new Headers(requestInit?.headers).get('user-agent')).to.equal(
 			'Europe/2.1.0 (iPad; iOS 18.5; Scale/2.00)',
 		);
+	});
+
+	it('filters unsafe and case-colliding status and GPS field names', async () => {
+		const response = {
+			code: 0,
+			data: {
+				statusTime: 1_700_000_000,
+				onlineStatus: 1,
+				basicVehicleStatus: {
+					'safe-key_1': 8,
+					'bad.field': 1,
+					'bad/field': 2,
+					'white space': 3,
+					'line-break\n': 4,
+					'': 5,
+					['x'.repeat(65)]: 5,
+					LOCKSTATUS: 1,
+					lockStatus: 2,
+					GPSLATITUDE: 9,
+					STATUSTIME: 10,
+					OnlineStatus: 11,
+					constructor: 12,
+					TOSTRING: 13,
+					['__proto__']: 14,
+					prototype: 15,
+				},
+				gpsPosition: {
+					wayPoint: {
+						speed: 20,
+						'bad.field': 1,
+						'bad/field': 2,
+						'waypoint-break\n': 3,
+						position: {
+							altitude: 18,
+							latitude: 51.5,
+							'bad.field': 3,
+							'bad/field': 4,
+							'': 5,
+							'position-break\n': 6,
+						},
+					},
+				},
+			},
+		};
+		const debugMessages: string[] = [];
+		const client = new SaicApiClient(
+			() => Promise.resolve(new Response(JSON.stringify(response))),
+			() => 1_700_000_000_000,
+			undefined,
+			message => debugMessages.push(message),
+		);
+
+		expect(await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487')).to.deep.equal({
+			statusTime: 1_700_000_000,
+			onlineStatus: 1,
+			basicVehicleStatus: {
+				'safe-key_1': 8,
+				LOCKSTATUS: 1,
+				GPSLATITUDE: 9,
+				speed: 20,
+				gpsAltitude: 18,
+			},
+		});
+		const parsedMessage = debugMessages.find(message => message.includes('parsed')) ?? '';
+		expect(parsedMessage).to.contain('<invalid field name>');
+		expect(debugMessages.join('\n')).not.to.include('line-break\n');
+		expect(debugMessages.join('\n')).not.to.include('waypoint-break\n');
+		expect(debugMessages.join('\n')).not.to.include('position-break\n');
 	});
 
 	it('sends the verified lock and climate command payloads', async () => {
@@ -779,6 +869,36 @@ describe('SaicApiClient vehicle status', () => {
 				'SAIC vehicle status response did not contain basic status data (code: 0, response keys: code, data, data type: object, data keys: none)',
 			);
 		}
+	});
+
+	it('sanitizes unexpected response keys in status diagnostics', async () => {
+		const response = {
+			code: 0,
+			['response-break\n']: true,
+			data: {
+				['data-break\n']: true,
+			},
+		};
+		const debugMessages: string[] = [];
+		const client = new SaicApiClient(
+			() => Promise.resolve(new Response(JSON.stringify(response))),
+			Date.now,
+			() => Promise.resolve(),
+			message => debugMessages.push(message),
+		);
+
+		try {
+			await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487');
+			expect.fail('Expected missing basicVehicleStatus to be rejected');
+		} catch (error) {
+			expect((error as Error).message).to.contain('response keys: code, <invalid field name>, data');
+			expect((error as Error).message).to.contain('data keys: <invalid field name>');
+			expect((error as Error).message).not.to.include('response-break\n');
+			expect((error as Error).message).not.to.include('data-break\n');
+		}
+		expect(debugMessages.join('\n')).to.contain('<invalid field name>');
+		expect(debugMessages.join('\n')).not.to.include('response-break\n');
+		expect(debugMessages.join('\n')).not.to.include('data-break\n');
 	});
 
 	it('rejects status data with no recognized usable fields', async () => {
@@ -1389,6 +1509,48 @@ describe('SaicApiClient charging status', () => {
 		expect(requestInit?.method).to.equal('GET');
 		expect(new Headers(requestInit?.headers).get('event-id')).to.equal('0');
 		expect(new Headers(requestInit?.headers).get('blade-auth')).to.equal('test-access-token');
+	});
+
+	it('filters unsafe, duplicate, and synthetic charging field names', async () => {
+		const response = {
+			code: 0,
+			data: {
+				chrgMgmtData: {
+					bmsChrgSts: 1,
+					BMSCHRGSTS: 2,
+					realtimePower: 3,
+					REALTIMEPOWER: 4,
+					'safe-key_1': 5,
+					'bad.field': 6,
+					'bad/field': 7,
+					'white space': 8,
+					'line-break\n': 9,
+					'': 10,
+					['x'.repeat(65)]: 11,
+					constructor: 12,
+					TOSTRING: 13,
+					['__proto__']: 14,
+					prototype: 15,
+				},
+				rvsChargeStatus: {
+					chargingGunState: 1,
+					CHARGINGGUNSTATE: 2,
+					batteryAvailableEnergy: 3,
+					BATTERYAVAILABLEENERGY: 4,
+					packEnergyKwh: 25,
+					constructor: 5,
+					TOSTRING: 6,
+					['__proto__']: 7,
+					prototype: 8,
+				},
+			},
+		};
+		const client = new SaicApiClient(() => Promise.resolve(new Response(JSON.stringify(response))));
+
+		expect(await client.getVehicleChargingStatus(options, 'test-access-token', 'LSJWH4095RN166487')).to.deep.equal({
+			chrgMgmtData: { bmsChrgSts: 1, 'safe-key_1': 5 },
+			rvsChargeStatus: { chargingGunState: 1, packEnergyKwh: 25 },
+		});
 	});
 
 	it('continues a successful empty response using the returned event id', async () => {
