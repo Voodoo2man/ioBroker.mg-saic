@@ -52,7 +52,7 @@
     "www/",
     "io-package.json",
     "LICENSE",
-    "MG.png"
+    "admin/MG.png"
   ],
   "scripts": {
     "prebuild": "rimraf build",
