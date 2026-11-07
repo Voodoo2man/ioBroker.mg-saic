@@ -105,6 +105,7 @@ describe('runtime command translations', () => {
 		expect(getRuntimeName('chargingManagement').en).to.equal('Charging session');
 		expect(getRuntimeName('chargeStatus').de).to.equal('Ladestatistik');
 		expect(getRuntimeName('chargeStatus').en).to.equal('Charging statistics');
+		expect(getRuntimeName('commandGroup_access')['zh-cn']).to.equal('访问');
 	});
 
 	it('provides display names for charging API datapoints', () => {
@@ -156,6 +157,8 @@ describe('runtime command translations', () => {
 			'chargingGunState',
 			'chargingType',
 			'endTime',
+			'lastChargeEndingPower',
+			'batteryAvailableEnergy',
 			'fuelRangeElec',
 			'mileage',
 			'mileageOfDay',
