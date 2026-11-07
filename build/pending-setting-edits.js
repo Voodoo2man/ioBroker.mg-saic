@@ -18,6 +18,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var pending_setting_edits_exports = {};
 __export(pending_setting_edits_exports, {
+  migrateLegacyPendingSettingEdits: () => migrateLegacyPendingSettingEdits,
   parsePendingSettingEdits: () => parsePendingSettingEdits,
   serializePendingSettingEdits: () => serializePendingSettingEdits
 });
@@ -36,11 +37,34 @@ function parsePendingSettingEdits(value, validStateIds) {
     return [];
   }
 }
+async function migrateLegacyPendingSettingEdits(savedFileValue, legacyState, writeFile, deleteLegacyState) {
+  if (!legacyState.exists) {
+    return;
+  }
+  const stateIds = /* @__PURE__ */ new Set([
+    ...parsePersistedPendingSettingEditIds(savedFileValue),
+    ...parsePersistedPendingSettingEditIds(legacyState.value)
+  ]);
+  await writeFile(serializePendingSettingEdits(stateIds));
+  await deleteLegacyState();
+}
+function parsePersistedPendingSettingEditIds(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? [...new Set(parsed.filter((id) => typeof id === "string"))] : [];
+  } catch {
+    return [];
+  }
+}
 function serializePendingSettingEdits(stateIds) {
   return JSON.stringify([...stateIds]);
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  migrateLegacyPendingSettingEdits,
   parsePendingSettingEdits,
   serializePendingSettingEdits
 });

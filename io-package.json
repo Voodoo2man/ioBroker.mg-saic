@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "mg-saic",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "news": {
+      "0.1.1": {
+        "en": "Lowered the minimum Node.js requirement to 22.22.2.\nImproved charging datapoint labels and units, enforced safe polling interval limits, and added manufacturer references.",
+        "de": "Mindestanforderung für Node.js auf 22.22.2 gesenkt.\nVerbesserte Ladedaten-Etiketten und Geräte, sichere Abfrageintervalle und neue Herstellerangaben.",
+        "ru": "Минимальное требование к Node.js снижено до 22.22.2.\nУсовершенствованные этикетки и единицы измерения данных зарядки, введенные безопасные ограничения интервалов опроса и добавлены ссылки производителей.",
+        "pt": "Reduziu o requisito mínimo de Node.js para 22.22.2.\nRótulos e unidades de dados de carregamento aprimorados, limites seguros de polling e referências do fabricante.",
+        "nl": "De minimumvereiste voor Node.js is verlaagd naar 22.22.2.\nVerbeterde labels en eenheden voor oplaadpunten, handhaving van veilige polling-intervallimieten en toegevoegde referenties van de fabrikant.",
+        "fr": "L'exigence minimale de Node.js a été abaissée à 22.22.2.\nÉtiquettes et unités de recharge améliorées, intervalles d'interrogation sécurisés et ajout de références du fabricant.",
+        "it": "Ridotto il requisito minimo di Node.js a 22.22.2.\nEtichette e unità di ricarica migliorate, limiti di polling sicuri e riferimenti del produttore aggiunti.",
+        "es": "Redujo el requisito mínimo de Node.js a 22.22.2.\nSe mejoraron las etiquetas y unidades de puntos de datos de carga, se impusieron límites de sondeo seguros y se agregaron referencias de fabricantes.",
+        "pl": "Obniżył minimalny wymóg Node.js do 22.22.2.\nUlepszone etykiety i jednostki punktów ładowania, wymuszone bezpieczne limity interwałów sondażu i dodane referencje producenta.",
+        "uk": "Знизили мінімальну вимогу Node.js до 22.22.2.\nПокращено етикетки та блоки даних зарядки, запроваджені безпечні обмеження інтервалів опитування та додані посилання на виробника.",
+        "zh-cn": "将 Node.js 的最低要求降低到 22.22.2。\n改进了充电数据点标签和单位，强制执行了安全轮询间隔限制，并增加了制造商参考资料。"
+      },
       "0.1.0": {
         "en": "Reported real-time charging power in kW using the pack current and voltage.\nApplied confirmed profile-specific charging conversions.\nCalculated available battery energy from battery level and usable capacity.",
         "de": "Gemeldete Echtzeit-Ladeleistung in kW mit Packstrom und Spannung.\nBestätigte profilspezifische Umrechnungen angewendet.\nBerechnete Akkuenergie aus Akkustand und nutzbarer Kapazität.",
