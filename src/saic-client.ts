@@ -195,6 +195,36 @@ const defaultTimerFunctions: TimerFunctions = {
 	},
 };
 
+const UNSAFE_API_ID_SEGMENT_CHARACTER = /[^A-Za-z0-9_-]/;
+const UNSAFE_API_ID_SEGMENT_NAMES = new Set(
+	[...Object.getOwnPropertyNames(Object.prototype), 'prototype'].map(name => name.toLowerCase()),
+);
+const INVALID_API_FIELD_NAME = '<invalid field name>';
+
+function isSafeApiIdSegment(value: string): boolean {
+	return (
+		value.length > 0 &&
+		value.length <= 64 &&
+		!UNSAFE_API_ID_SEGMENT_CHARACTER.test(value) &&
+		!UNSAFE_API_ID_SEGMENT_NAMES.has(value.toLowerCase())
+	);
+}
+
+function formatApiObjectKeys(value: unknown): string {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return 'unavailable';
+	}
+	return (
+		Object.keys(value)
+			.map(key => (isSafeApiIdSegment(key) ? key : INVALID_API_FIELD_NAME))
+			.join(', ') || 'none'
+	);
+}
+
+function setOwnRecordField<T>(record: Record<string, T>, field: string, value: T): void {
+	Object.defineProperty(record, field, { value, writable: true, enumerable: true, configurable: true });
+}
+
 interface SaicApiEnvelope {
 	code?: number | string;
 	message?: string;
@@ -493,14 +523,20 @@ export class SaicApiClient {
 			throw new Error('SAIC vehicle list response did not contain a vehicle list');
 		}
 
+		const seenVins = new Set<string>();
 		return envelope.data.vinList.flatMap((item): SaicVehicle[] => {
 			if (!item || typeof item !== 'object' || Array.isArray(item)) {
 				return [];
 			}
 			const record = item as Record<string, unknown>;
-			if (typeof record.vin !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(record.vin)) {
+			if (typeof record.vin !== 'string' || !isSafeApiIdSegment(record.vin)) {
 				return [];
 			}
+			const canonicalVin = record.vin.toLowerCase();
+			if (seenVins.has(canonicalVin)) {
+				return [];
+			}
+			seenVins.add(canonicalVin);
 
 			const vehicle: SaicVehicle = { vin: record.vin };
 			for (const key of ['name', 'brandName', 'modelName', 'series', 'modelYear', 'colorName'] as const) {
@@ -652,7 +688,7 @@ export class SaicApiClient {
 			const returnCode = Number(envelope.code);
 			const nextEventId = result.response.headers.get('event-id');
 			this.debug(
-				`GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, data keys: ${Object.keys(envelope.data ?? {}).join(', ') || 'none'}, next event-id: ${nextEventId ?? 'none'}`,
+				`GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId ?? 'none'}`,
 			);
 			if (returnCode === 401 || returnCode === 403) {
 				throw new SaicHttpError(`SAIC rejected charging status with code ${returnCode}`, returnCode);
@@ -681,23 +717,35 @@ export class SaicApiClient {
 					`SAIC charging status response did not contain data (code: ${String(envelope.code)}, event-id: ${nextEventId ?? 'none'})`,
 				);
 			}
-			const parseFields = (value: unknown): Record<string, number | string | undefined> => {
+			const parseFields = (
+				value: unknown,
+				reservedFields: readonly string[],
+			): Record<string, number | string | undefined> => {
 				if (!value || typeof value !== 'object' || Array.isArray(value)) {
 					return {};
 				}
-				return Object.fromEntries(
-					Object.entries(value as Record<string, unknown>).map(([field, raw]) => [
+				const fields: Record<string, number | string | undefined> = {};
+				const seenFields = new Set(reservedFields.map(field => field.toLowerCase()));
+				for (const [field, raw] of Object.entries(value as Record<string, unknown>)) {
+					const canonicalField = field.toLowerCase();
+					if (!isSafeApiIdSegment(field) || seenFields.has(canonicalField)) {
+						continue;
+					}
+					seenFields.add(canonicalField);
+					setOwnRecordField(
+						fields,
 						field,
 						typeof raw === 'number' && Number.isFinite(raw) && raw !== -128
 							? raw
 							: typeof raw === 'string' && raw.length > 0
 								? raw
 								: undefined,
-					]),
-				);
+					);
+				}
+				return fields;
 			};
-			const chrgMgmtData = parseFields(chargingData.chrgMgmtData);
-			const rvsChargeStatus = parseFields(chargingData.rvsChargeStatus);
+			const chrgMgmtData = parseFields(chargingData.chrgMgmtData, ['realtimePower']);
+			const rvsChargeStatus = parseFields(chargingData.rvsChargeStatus, ['batteryAvailableEnergy']);
 			if (Object.keys(chrgMgmtData).length === 0 && Object.keys(rvsChargeStatus).length === 0) {
 				throw new Error('SAIC charging status response contained no charging fields');
 			}
@@ -1245,7 +1293,7 @@ export class SaicApiClient {
 					? envelope.message.replace(/[\r\n\t]/g, ' ').slice(0, 200)
 					: 'none';
 			this.debug(
-				`GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, message: ${responseMessage}, data keys: ${Object.keys(envelope.data ?? {}).join(', ') || 'none'}, next event-id: ${nextEventId ?? 'none'}`,
+				`GET ${requestPath} for ${vin} returned SAIC code ${String(envelope.code)}, message: ${responseMessage}, data keys: ${formatApiObjectKeys(envelope.data)}, next event-id: ${nextEventId ?? 'none'}`,
 			);
 			const returnCode = Number(envelope.code);
 			if (returnCode === 401 || returnCode === 403) {
@@ -1286,14 +1334,11 @@ export class SaicApiClient {
 			typeof envelope.data.basicVehicleStatus !== 'object' ||
 			Array.isArray(envelope.data.basicVehicleStatus)
 		) {
-			const responseKeys = Object.keys(envelope).join(', ') || 'none';
+			const responseKeys = formatApiObjectKeys(envelope);
 			const responseEventId = useEventId ? responseHeaders.get('event-id') : null;
 			const dataType =
 				envelope.data === null ? 'null' : Array.isArray(envelope.data) ? 'array' : typeof envelope.data;
-			const dataKeys =
-				envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data)
-					? Object.keys(envelope.data).join(', ') || 'none'
-					: 'unavailable';
+			const dataKeys = formatApiObjectKeys(envelope.data);
 			this.debug(
 				`GET ${requestPath} for ${vin} status shape invalid: code ${String(envelope.code)}, data type ${dataType}, data keys ${dataKeys}`,
 			);
@@ -1314,12 +1359,29 @@ export class SaicApiClient {
 		const basicVehicleStatus: Record<string, number | undefined> = {};
 		const acceptedFields: string[] = [];
 		const ignoredFields: string[] = [];
+		const seenStatusFields = new Set(['statusTime', 'onlineStatus'].map(field => field.toLowerCase()));
+		const acceptStatusField = (field: string, source: string): boolean => {
+			const canonicalField = field.toLowerCase();
+			if (!isSafeApiIdSegment(field)) {
+				ignoredFields.push(INVALID_API_FIELD_NAME);
+				return false;
+			}
+			if (seenStatusFields.has(canonicalField)) {
+				ignoredFields.push(source);
+				return false;
+			}
+			seenStatusFields.add(canonicalField);
+			return true;
+		};
 		for (const [field, value] of Object.entries(rawStatus)) {
+			if (!acceptStatusField(field, field)) {
+				continue;
+			}
 			if (typeof value === 'number' && Number.isFinite(value) && value !== -128) {
-				basicVehicleStatus[field] = value;
+				setOwnRecordField(basicVehicleStatus, field, value);
 				acceptedFields.push(field);
 			} else {
-				basicVehicleStatus[field] = undefined;
+				setOwnRecordField(basicVehicleStatus, field, undefined);
 				ignoredFields.push(field);
 			}
 		}
@@ -1329,33 +1391,46 @@ export class SaicApiClient {
 			if (wayPoint && typeof wayPoint === 'object' && !Array.isArray(wayPoint)) {
 				const wayPointRecord = wayPoint as Record<string, unknown>;
 				for (const [field, value] of Object.entries(wayPointRecord)) {
+					const source = `gpsPosition.wayPoint.${field}`;
+					if (!isSafeApiIdSegment(field)) {
+						ignoredFields.push(INVALID_API_FIELD_NAME);
+						continue;
+					}
 					if (field === 'position' && value && typeof value === 'object' && !Array.isArray(value)) {
 						for (const [positionField, positionValue] of Object.entries(value as Record<string, unknown>)) {
+							const positionSource = `${source}.${positionField}`;
+							if (!isSafeApiIdSegment(positionField)) {
+								ignoredFields.push(INVALID_API_FIELD_NAME);
+								continue;
+							}
 							const statusField = `gps${positionField[0].toUpperCase()}${positionField.slice(1)}`;
+							if (!acceptStatusField(statusField, positionSource)) {
+								continue;
+							}
 							if (
 								typeof positionValue === 'number' &&
 								Number.isFinite(positionValue) &&
 								positionValue !== -128
 							) {
-								basicVehicleStatus[statusField] = positionValue;
+								setOwnRecordField(basicVehicleStatus, statusField, positionValue);
 								acceptedFields.push(statusField);
 							} else {
-								basicVehicleStatus[statusField] = undefined;
-								ignoredFields.push(`gpsPosition.wayPoint.position.${positionField}`);
+								setOwnRecordField(basicVehicleStatus, statusField, undefined);
+								ignoredFields.push(positionSource);
 							}
 						}
 						continue;
 					}
+					const statusField = field === 'speed' ? 'speed' : `gps${field[0].toUpperCase()}${field.slice(1)}`;
+					if (!acceptStatusField(statusField, source)) {
+						continue;
+					}
 					if (typeof value === 'number' && Number.isFinite(value) && value !== -128) {
-						const statusField =
-							field === 'speed' ? 'speed' : `gps${field[0].toUpperCase()}${field.slice(1)}`;
-						basicVehicleStatus[statusField] = value;
+						setOwnRecordField(basicVehicleStatus, statusField, value);
 						acceptedFields.push(statusField);
 					} else {
-						const statusField =
-							field === 'speed' ? 'speed' : `gps${field[0].toUpperCase()}${field.slice(1)}`;
-						basicVehicleStatus[statusField] = undefined;
-						ignoredFields.push(`gpsPosition.wayPoint.${field}`);
+						setOwnRecordField(basicVehicleStatus, statusField, undefined);
+						ignoredFields.push(source);
 					}
 				}
 			}

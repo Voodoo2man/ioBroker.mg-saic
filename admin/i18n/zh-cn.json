@@ -7,7 +7,6 @@
 	"Region": "地区",
 	"European Union": "欧盟",
 	"Rest of World": "其他地区",
-	"Cloud connectivity is not implemented yet. This value does not select a working backend.": "云连接尚未实现。此选项不会选择可用的后端服务。",
 	"Login type": "登录类型",
 	"Email": "电子邮箱",
 	"Phone number": "电话号码",

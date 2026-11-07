@@ -18,6 +18,8 @@ import {
 } from './saic-client';
 import { resolveSaicRegion } from './regions';
 import { isRefreshCommand, normalizeStateChangeId } from './refresh-command';
+import { RefreshPollQueue } from './refresh-poll-queue';
+import { RefreshPollTimer } from './refresh-poll-timer';
 import {
 	migrateLegacyPendingSettingEdits,
 	parsePendingSettingEdits,
@@ -142,14 +144,18 @@ class MgSaic extends utils.Adapter {
 			...options,
 			name: 'mg-saic',
 		});
+		this.pollTimer = new RefreshPollTimer(
+			(callback, milliseconds) => this.setTimeout(callback, milliseconds),
+			timer => this.clearTimeout(timer),
+		);
 		this.on('ready', this.onReady.bind(this));
 		this.on('stateChange', this.onStateChange.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 	}
 
-	private pollTimer?: ioBroker.Interval;
-	private pollInProgress = false;
-	private refreshQueued = false;
+	private readonly pollTimer: RefreshPollTimer<ioBroker.Timeout>;
+	private pollIntervalMilliseconds?: number;
+	private readonly refreshPollQueue = new RefreshPollQueue();
 	private stopping = false;
 	private unloadCallbackCalled = false;
 	private readonly abortController = new AbortController();
@@ -303,11 +309,9 @@ class MgSaic extends utils.Adapter {
 				return;
 			}
 
-			await this.refreshVehicleStatuses();
 			const intervalSeconds = config.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
-			if (!this.stopping) {
-				this.pollTimer = this.setInterval(() => this.triggerRefresh(), intervalSeconds * 1000);
-			}
+			this.pollIntervalMilliseconds = intervalSeconds * 1000;
+			await this.refreshVehicleStatuses();
 		} catch (error) {
 			if (this.stopping) {
 				return;
@@ -332,26 +336,32 @@ class MgSaic extends utils.Adapter {
 	}
 
 	private triggerRefresh(): void {
+		this.pollTimer.clear();
 		void this.refreshVehicleStatuses().catch(error => {
 			const details = error instanceof Error ? error.message : 'Unknown refresh error';
 			this.log.error(`Vehicle status refresh failed: ${details}`);
 		});
 	}
 
+	private scheduleNextPoll(): void {
+		if (this.stopping || this.pollIntervalMilliseconds === undefined) {
+			return;
+		}
+		this.pollTimer.schedule(() => this.triggerRefresh(), this.pollIntervalMilliseconds);
+	}
+
 	private async refreshVehicleStatuses(): Promise<void> {
 		if (this.stopping || !this.client || !this.loginOptions || !this.accessToken) {
 			return;
 		}
-		if (this.pollInProgress) {
-			this.refreshQueued = true;
+		if (!this.refreshPollQueue.request()) {
 			return;
 		}
-		this.pollInProgress = true;
 		const statusErrors: string[] = [];
 		let followUpUsed = false;
 		try {
 			do {
-				this.refreshQueued = false;
+				this.refreshPollQueue.clearQueuedRefresh();
 				for (const vehicle of this.vehicles) {
 					if (this.stopping) {
 						break;
@@ -528,17 +538,21 @@ class MgSaic extends utils.Adapter {
 						this.log.error(`Could not write live status for ${vehicle.vin}: ${details}`);
 					}
 				}
-				if (this.refreshQueued && followUpUsed) {
-					this.refreshQueued = false;
-				} else if (this.refreshQueued) {
+				if (this.refreshPollQueue.hasQueuedRefresh && followUpUsed) {
+					this.refreshPollQueue.clearQueuedRefresh();
+				} else if (this.refreshPollQueue.hasQueuedRefresh) {
 					followUpUsed = true;
 				}
-			} while (this.refreshQueued && !this.stopping);
+			} while (this.refreshPollQueue.hasQueuedRefresh && !this.stopping);
 			if (!this.stopping) {
 				await this.setState('info.lastError', statusErrors.join('; '), true);
 			}
 		} finally {
-			this.pollInProgress = false;
+			this.refreshPollQueue.finish(
+				this.stopping,
+				() => this.triggerRefresh(),
+				() => this.scheduleNextPoll(),
+			);
 		}
 	}
 
@@ -1444,10 +1458,8 @@ class MgSaic extends utils.Adapter {
 		this.unloadCallbackCalled = true;
 		this.stopping = true;
 		this.abortController.abort(new DOMException('Adapter is stopping', 'AbortError'));
-		this.refreshQueued = false;
-		if (this.pollTimer) {
-			this.clearInterval(this.pollTimer);
-		}
+		this.refreshPollQueue.clearQueuedRefresh();
+		this.pollTimer.clear();
 		callback();
 	}
 }

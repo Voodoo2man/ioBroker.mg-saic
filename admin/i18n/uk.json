@@ -7,7 +7,6 @@
 	"Region": "Регіон",
 	"European Union": "Європейський Союз",
 	"Rest of World": "Решта світу",
-	"Cloud connectivity is not implemented yet. This value does not select a working backend.": "Підключення до хмари ще не реалізовано. Це значення не вибирає робочий сервер.",
 	"Login type": "Тип входу",
 	"Email": "Електронна пошта",
 	"Phone number": "Номер телефону",
