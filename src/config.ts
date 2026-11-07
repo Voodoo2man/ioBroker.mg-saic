@@ -17,6 +17,7 @@ export interface MgSaicConfig {
 }
 
 export const DEFAULT_POLL_INTERVAL_SECONDS = 1800;
+export const MAX_POLL_INTERVAL_SECONDS = 2_147_483;
 
 /**
  * Returns configuration problems without logging any credential values.
@@ -27,9 +28,11 @@ export function validateConfig(config: MgSaicConfig): string[] {
 	const errors: string[] = [];
 	if (
 		config.pollIntervalSeconds !== undefined &&
-		(!Number.isInteger(config.pollIntervalSeconds) || config.pollIntervalSeconds < 1)
+		(!Number.isInteger(config.pollIntervalSeconds) ||
+			config.pollIntervalSeconds < 60 ||
+			config.pollIntervalSeconds > MAX_POLL_INTERVAL_SECONDS)
 	) {
-		errors.push('Polling interval must be a positive integer number of seconds');
+		errors.push(`Polling interval must be an integer between 60 and ${MAX_POLL_INTERVAL_SECONDS} seconds`);
 	}
 	if (!config.region?.trim()) {
 		errors.push('Region/backend code is required');

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { validateConfig } from './config';
+import { MAX_POLL_INTERVAL_SECONDS, validateConfig } from './config';
 import { isIndiaRegion, resolveSaicRegion } from './regions';
 
 describe('validateConfig', () => {
@@ -14,13 +14,18 @@ describe('validateConfig', () => {
 		expect(validateConfig(validEmailConfig)).to.deep.equal([]);
 	});
 
-	it('accepts a positive integer polling interval and rejects invalid values', () => {
+	it('accepts polling intervals within the supported timer range', () => {
 		expect(validateConfig({ ...validEmailConfig, pollIntervalSeconds: 60 })).to.deep.equal([]);
-		expect(validateConfig({ ...validEmailConfig, pollIntervalSeconds: 0 })).to.include(
-			'Polling interval must be a positive integer number of seconds',
+		expect(validateConfig({ ...validEmailConfig, pollIntervalSeconds: MAX_POLL_INTERVAL_SECONDS })).to.deep.equal(
+			[],
 		);
+		for (const pollIntervalSeconds of [0, 1, 10, 59, MAX_POLL_INTERVAL_SECONDS + 1]) {
+			expect(validateConfig({ ...validEmailConfig, pollIntervalSeconds })).to.include(
+				`Polling interval must be an integer between 60 and ${MAX_POLL_INTERVAL_SECONDS} seconds`,
+			);
+		}
 		expect(validateConfig({ ...validEmailConfig, pollIntervalSeconds: 1.5 })).to.include(
-			'Polling interval must be a positive integer number of seconds',
+			`Polling interval must be an integer between 60 and ${MAX_POLL_INTERVAL_SECONDS} seconds`,
 		);
 	});
 

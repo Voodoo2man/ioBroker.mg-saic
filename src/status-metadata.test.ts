@@ -64,12 +64,13 @@ describe('getVehicleStatusMetadata', () => {
 		});
 		expect(getChargingFieldMetadata('chrgngRmnngTime')).to.include({
 			role: 'value.interval',
-			unit: 'min',
+			unit: 'm',
 		});
 		expect(getChargingFieldMetadata('disChrgngRmnngTime')).to.include({
 			role: 'value.interval',
-			unit: 'min',
+			unit: 'm',
 		});
+		expect(getChargingFieldMetadata('chargingDuration')).to.include({ role: 'value.interval', unit: 'm' });
 		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptCrnt')).to.deep.equal({ type: 'number', role: 'value' });
 		expect(getChargingFieldMetadata('onBdChrgrAltrCrntInptCrnt', 'MG EH32')).to.include({
 			role: 'value.current',

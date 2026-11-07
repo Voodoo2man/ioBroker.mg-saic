@@ -7,11 +7,13 @@
 
 The adapter is intended for connecting MG and SAIC vehicles to ioBroker through the iSmart cloud service. It is not affiliated with or endorsed by MG, SAIC, or iSmart.
 
+For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC Motor](https://www.saicmotor.com/).
+
 ## Setup
 
 ### Before you start
 
-- Node.js 24.0.0 or later is required.
+- Node.js 22.22.2 or later is required.
 - ioBroker js-controller 7.2.2 or later is required.
 - ioBroker Admin 8.2.0 or later is required.
 - Use an iSmart account that has access to the vehicle. A separate account shared with the vehicle is recommended to avoid interfering with the mobile app session.
@@ -23,7 +25,8 @@ The adapter is intended for connecting MG and SAIC vehicles to ioBroker through 
 1. Install the adapter and create an instance in ioBroker Admin.
 2. Select the account region and login type (email or phone number).
 3. Enter the account's email address or phone number and password. For phone login, also enter the phone country calling code.
-4. Set the status polling interval in seconds. The default is 1800 seconds.
+4. Set the status polling interval between 60 and 2147483 seconds. The default is 1800 seconds.
+	Existing instances configured below 60 seconds must be updated; otherwise startup validation prevents the adapter from connecting.
 5. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
 
 ## Features
@@ -41,6 +44,11 @@ The adapter is published on npm but has not yet been added to the ioBroker adapt
 [![Donate](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
+### **WORK IN PROGRESS**
+
+- (Voodoo2man) Lowered the minimum Node.js requirement to 22.22.2.
+- (Voodoo2man) Improved charging datapoint labels and units, enforced safe polling interval limits, and added manufacturer references.
+
 ### 0.1.0 (2026-11-01)
 
 - (Voodoo2man) Reported real-time charging power in kW using the pack current and voltage.

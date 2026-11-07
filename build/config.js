@@ -19,16 +19,18 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var config_exports = {};
 __export(config_exports, {
   DEFAULT_POLL_INTERVAL_SECONDS: () => DEFAULT_POLL_INTERVAL_SECONDS,
+  MAX_POLL_INTERVAL_SECONDS: () => MAX_POLL_INTERVAL_SECONDS,
   validateConfig: () => validateConfig
 });
 module.exports = __toCommonJS(config_exports);
 var import_regions = require("./regions");
 const DEFAULT_POLL_INTERVAL_SECONDS = 1800;
+const MAX_POLL_INTERVAL_SECONDS = 2147483;
 function validateConfig(config) {
   var _a, _b, _c;
   const errors = [];
-  if (config.pollIntervalSeconds !== void 0 && (!Number.isInteger(config.pollIntervalSeconds) || config.pollIntervalSeconds < 1)) {
-    errors.push("Polling interval must be a positive integer number of seconds");
+  if (config.pollIntervalSeconds !== void 0 && (!Number.isInteger(config.pollIntervalSeconds) || config.pollIntervalSeconds < 60 || config.pollIntervalSeconds > MAX_POLL_INTERVAL_SECONDS)) {
+    errors.push(`Polling interval must be an integer between 60 and ${MAX_POLL_INTERVAL_SECONDS} seconds`);
   }
   if (!((_a = config.region) == null ? void 0 : _a.trim())) {
     errors.push("Region/backend code is required");
@@ -54,6 +56,7 @@ function validateConfig(config) {
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   DEFAULT_POLL_INTERVAL_SECONDS,
+  MAX_POLL_INTERVAL_SECONDS,
   validateConfig
 });
 //# sourceMappingURL=config.js.map
