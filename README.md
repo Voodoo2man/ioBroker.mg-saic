@@ -36,7 +36,7 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 
 ## Installation
 
-The adapter is published on npm but has not yet been added to the ioBroker adapter catalog.
+The adapter is published on npm and available from ioBroker's Latest adapter repository.
 
 ## Support
 
