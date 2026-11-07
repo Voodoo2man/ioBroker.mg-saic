@@ -29,6 +29,7 @@ var import_saic_client = require("./saic-client");
 var import_regions = require("./regions");
 var import_refresh_command = require("./refresh-command");
 var import_refresh_poll_queue = require("./refresh-poll-queue");
+var import_refresh_poll_timer = require("./refresh-poll-timer");
 var import_pending_setting_edits = require("./pending-setting-edits");
 var import_status_metadata = require("./status-metadata");
 var import_runtime_translations = require("./runtime-translations");
@@ -115,11 +116,16 @@ class MgSaic extends utils.Adapter {
       ...options,
       name: "mg-saic"
     });
+    this.pollTimer = new import_refresh_poll_timer.RefreshPollTimer(
+      (callback, milliseconds) => this.setTimeout(callback, milliseconds),
+      (timer) => this.clearTimeout(timer)
+    );
     this.on("ready", this.onReady.bind(this));
     this.on("stateChange", this.onStateChange.bind(this));
     this.on("unload", this.onUnload.bind(this));
   }
   pollTimer;
+  pollIntervalMilliseconds;
   refreshPollQueue = new import_refresh_poll_queue.RefreshPollQueue();
   stopping = false;
   unloadCallbackCalled = false;
@@ -262,11 +268,9 @@ class MgSaic extends utils.Adapter {
         this.log.warn("No vehicles are linked to this SAIC account.");
         return;
       }
-      await this.refreshVehicleStatuses();
       const intervalSeconds = (_e = config.pollIntervalSeconds) != null ? _e : import_config.DEFAULT_POLL_INTERVAL_SECONDS;
-      if (!this.stopping) {
-        this.pollTimer = this.setInterval(() => this.triggerRefresh(), intervalSeconds * 1e3);
-      }
+      this.pollIntervalMilliseconds = intervalSeconds * 1e3;
+      await this.refreshVehicleStatuses();
     } catch (error) {
       if (this.stopping) {
         return;
@@ -289,10 +293,17 @@ class MgSaic extends utils.Adapter {
     await this.setState("info.connection", true, true);
   }
   triggerRefresh() {
+    this.pollTimer.clear();
     void this.refreshVehicleStatuses().catch((error) => {
       const details = error instanceof Error ? error.message : "Unknown refresh error";
       this.log.error(`Vehicle status refresh failed: ${details}`);
     });
+  }
+  scheduleNextPoll() {
+    if (this.stopping || this.pollIntervalMilliseconds === void 0) {
+      return;
+    }
+    this.pollTimer.schedule(() => this.triggerRefresh(), this.pollIntervalMilliseconds);
   }
   async refreshVehicleStatuses() {
     var _a;
@@ -486,7 +497,11 @@ class MgSaic extends utils.Adapter {
         await this.setState("info.lastError", statusErrors.join("; "), true);
       }
     } finally {
-      this.refreshPollQueue.finish(this.stopping, () => this.triggerRefresh());
+      this.refreshPollQueue.finish(
+        this.stopping,
+        () => this.triggerRefresh(),
+        () => this.scheduleNextPoll()
+      );
     }
   }
   onStateChange(id, state) {
@@ -1313,9 +1328,7 @@ class MgSaic extends utils.Adapter {
     this.stopping = true;
     this.abortController.abort(new DOMException("Adapter is stopping", "AbortError"));
     this.refreshPollQueue.clearQueuedRefresh();
-    if (this.pollTimer) {
-      this.clearInterval(this.pollTimer);
-    }
+    this.pollTimer.clear();
     callback();
   }
 }

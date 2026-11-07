@@ -19,6 +19,7 @@ import {
 import { resolveSaicRegion } from './regions';
 import { isRefreshCommand, normalizeStateChangeId } from './refresh-command';
 import { RefreshPollQueue } from './refresh-poll-queue';
+import { RefreshPollTimer } from './refresh-poll-timer';
 import {
 	migrateLegacyPendingSettingEdits,
 	parsePendingSettingEdits,
@@ -143,12 +144,17 @@ class MgSaic extends utils.Adapter {
 			...options,
 			name: 'mg-saic',
 		});
+		this.pollTimer = new RefreshPollTimer(
+			(callback, milliseconds) => this.setTimeout(callback, milliseconds),
+			timer => this.clearTimeout(timer),
+		);
 		this.on('ready', this.onReady.bind(this));
 		this.on('stateChange', this.onStateChange.bind(this));
 		this.on('unload', this.onUnload.bind(this));
 	}
 
-	private pollTimer?: ioBroker.Interval;
+	private readonly pollTimer: RefreshPollTimer<ioBroker.Timeout>;
+	private pollIntervalMilliseconds?: number;
 	private readonly refreshPollQueue = new RefreshPollQueue();
 	private stopping = false;
 	private unloadCallbackCalled = false;
@@ -303,11 +309,9 @@ class MgSaic extends utils.Adapter {
 				return;
 			}
 
-			await this.refreshVehicleStatuses();
 			const intervalSeconds = config.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
-			if (!this.stopping) {
-				this.pollTimer = this.setInterval(() => this.triggerRefresh(), intervalSeconds * 1000);
-			}
+			this.pollIntervalMilliseconds = intervalSeconds * 1000;
+			await this.refreshVehicleStatuses();
 		} catch (error) {
 			if (this.stopping) {
 				return;
@@ -332,10 +336,18 @@ class MgSaic extends utils.Adapter {
 	}
 
 	private triggerRefresh(): void {
+		this.pollTimer.clear();
 		void this.refreshVehicleStatuses().catch(error => {
 			const details = error instanceof Error ? error.message : 'Unknown refresh error';
 			this.log.error(`Vehicle status refresh failed: ${details}`);
 		});
+	}
+
+	private scheduleNextPoll(): void {
+		if (this.stopping || this.pollIntervalMilliseconds === undefined) {
+			return;
+		}
+		this.pollTimer.schedule(() => this.triggerRefresh(), this.pollIntervalMilliseconds);
 	}
 
 	private async refreshVehicleStatuses(): Promise<void> {
@@ -536,7 +548,11 @@ class MgSaic extends utils.Adapter {
 				await this.setState('info.lastError', statusErrors.join('; '), true);
 			}
 		} finally {
-			this.refreshPollQueue.finish(this.stopping, () => this.triggerRefresh());
+			this.refreshPollQueue.finish(
+				this.stopping,
+				() => this.triggerRefresh(),
+				() => this.scheduleNextPoll(),
+			);
 		}
 	}
 
@@ -1443,9 +1459,7 @@ class MgSaic extends utils.Adapter {
 		this.stopping = true;
 		this.abortController.abort(new DOMException('Adapter is stopping', 'AbortError'));
 		this.refreshPollQueue.clearQueuedRefresh();
-		if (this.pollTimer) {
-			this.clearInterval(this.pollTimer);
-		}
+		this.pollTimer.clear();
 		callback();
 	}
 }

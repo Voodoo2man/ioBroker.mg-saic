@@ -46,14 +46,19 @@ class RefreshPollQueue {
    *
    * @param stopping Whether adapter shutdown prevents new polls.
    * @param runQueuedRefresh Starts the queued poll.
+   * @param onIdle Runs after the final poll when no follow-up is waiting.
    */
-  finish(stopping, runQueuedRefresh) {
+  finish(stopping, runQueuedRefresh, onIdle) {
     this.inProgress = false;
-    if (stopping || !this.queued) {
+    if (stopping) {
       return;
     }
-    this.queued = false;
-    runQueuedRefresh();
+    if (this.queued) {
+      this.queued = false;
+      runQueuedRefresh();
+      return;
+    }
+    onIdle();
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

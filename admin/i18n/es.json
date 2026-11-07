@@ -7,7 +7,6 @@
 	"Region": "Región",
 	"European Union": "Unión Europea",
 	"Rest of World": "Resto del mundo",
-	"Cloud connectivity is not implemented yet. This value does not select a working backend.": "La conexión a la nube aún no está implementada. Este valor no selecciona un servicio operativo.",
 	"Login type": "Tipo de inicio de sesión",
 	"Email": "Correo electrónico",
 	"Phone number": "Número de teléfono",

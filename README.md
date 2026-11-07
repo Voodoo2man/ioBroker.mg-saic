@@ -45,7 +45,7 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 ## Changelog
 ### **WORK IN PROGRESS**
 
-- (Voodoo2man) Prevented unsafe or case-colliding API fields and vehicle IDs from creating duplicate datapoints, and ensured queued manual refreshes run after polling completes.
+- (Voodoo2man) Prevented unsafe or case-colliding API fields and vehicle IDs from creating duplicate datapoints, scheduled polling after each completed cycle while honoring queued manual refreshes, and removed an unused cloud-backend translation.
 
 ### 0.1.1 (2026-11-07)
 
