@@ -31,7 +31,6 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 ## Features
 
 - Connects ioBroker to the iSmart cloud service and retrieves vehicle status.
-- Retries a temporary startup failure with a bounded backoff so brief cloud outages do not leave the adapter stuck until a restart.
 - Provides remote controls for supported vehicle functions.
 - Supports climate, heating, and charging features where available for the vehicle.
 
