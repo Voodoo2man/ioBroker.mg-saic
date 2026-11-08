@@ -141,6 +141,8 @@ const settingInputsByAction: Record<SettingAction, string[]> = {
 
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 const PENDING_SETTING_EDITS_FILE = 'pending-setting-edits.json';
+const MAX_INITIALIZATION_RETRIES = 3;
+const INITIALIZATION_RETRY_DELAY_MS = 60_000;
 
 class MgSaic extends utils.Adapter {
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
@@ -159,6 +161,8 @@ class MgSaic extends utils.Adapter {
 
 	private readonly pollTimer: RefreshPollTimer<ioBroker.Timeout>;
 	private pollIntervalMilliseconds?: number;
+	private initializationRetryCount = 0;
+	private initializationRetryTimer?: ioBroker.Timeout;
 	private readonly refreshPollQueue = new RefreshPollQueue();
 	private stopping = false;
 	private unloadCallbackCalled = false;
@@ -286,6 +290,7 @@ class MgSaic extends utils.Adapter {
 			await this.setState('info.connection', false, true);
 			await this.setState('info.lastError', message, true);
 			this.log.warn(message);
+			this.scheduleInitializationRetry();
 			return;
 		}
 
@@ -307,6 +312,7 @@ class MgSaic extends utils.Adapter {
 				this.log.warn(`Could not restore pending setting edits: ${details}`);
 			}
 			await this.setState('info.connection', true, true);
+			this.initializationRetryCount = 0;
 			this.log.info(`SAIC account authenticated; discovered ${this.vehicles.length} vehicle(s).`);
 			if (this.vehicles.length === 0) {
 				await this.setState('info.lastError', 'No vehicles are linked to this SAIC account', true);
@@ -325,6 +331,22 @@ class MgSaic extends utils.Adapter {
 			await this.setState('info.lastError', `Could not initialize vehicle objects: ${details}`, true);
 			this.log.error(`Could not initialize vehicle objects: ${details}`);
 		}
+	}
+
+	private scheduleInitializationRetry(): void {
+		if (this.stopping || this.initializationRetryCount >= MAX_INITIALIZATION_RETRIES) {
+			return;
+		}
+		this.initializationRetryCount += 1;
+		this.log.info(
+			`Retrying SAIC initialization in ${INITIALIZATION_RETRY_DELAY_MS / 1000} seconds (${this.initializationRetryCount}/${MAX_INITIALIZATION_RETRIES})`,
+		);
+		this.initializationRetryTimer = this.setTimeout(() => {
+			this.initializationRetryTimer = undefined;
+			if (!this.stopping) {
+				void this.onReady();
+			}
+		}, INITIALIZATION_RETRY_DELAY_MS);
 	}
 
 	private async authenticate(): Promise<void> {
@@ -584,7 +606,9 @@ class MgSaic extends utils.Adapter {
 			({ vin }) => settingAction && eventId === `${this.namespace}.${vehicleCommandPath(vin, settingAction.id)}`,
 		);
 		if (settingAction && settingVehicle) {
-			void this.executeVehicleSetting(settingVehicle.vin, settingAction.id);
+			if (state.val === true) {
+				void this.executeVehicleSetting(settingVehicle.vin, settingAction.id);
+			}
 			return;
 		}
 		const settingInput = this.vehicles
@@ -1518,6 +1542,10 @@ class MgSaic extends utils.Adapter {
 		this.abortController.abort(new DOMException('Adapter is stopping', 'AbortError'));
 		this.refreshPollQueue.clearQueuedRefresh();
 		this.pollTimer.clear();
+		if (this.initializationRetryTimer !== undefined) {
+			this.clearTimeout(this.initializationRetryTimer);
+			this.initializationRetryTimer = undefined;
+		}
 		callback();
 	}
 }
