@@ -126,6 +126,11 @@ describe('getVehicleStatusMetadata', () => {
 			role: 'value.power',
 			unit: 'kW',
 		});
+		expect(getChargingFieldMetadata('BMSPACKSOCDSP')).to.include({
+			role: 'value.battery',
+			unit: '%',
+		});
+		expect(normalizeChargingValue('BMSPACKSOCDSP', 850)).to.equal(85);
 		expect(getChargingFieldMetadata('lastChargeEndingPower')).to.include({
 			role: 'value.energy',
 			unit: 'kWh',

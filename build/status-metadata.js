@@ -33,6 +33,7 @@ __export(status_metadata_exports, {
   normalizeChargingValue: () => normalizeChargingValue,
   normalizeVehicleStatusValue: () => normalizeVehicleStatusValue,
   resolveChargingFieldIds: () => resolveChargingFieldIds,
+  resolveChargingFieldName: () => resolveChargingFieldName,
   resolveOdometerValue: () => resolveOdometerValue,
   resolveVehicleStatusFieldId: () => resolveVehicleStatusFieldId,
   resolveVehicleStatusFieldName: () => resolveVehicleStatusFieldName,
@@ -1027,33 +1028,48 @@ const chargingFieldMetadata = {
   workingCurrent: { type: "number", role: "value.current", unit: "A", factor: 0.01, precision: 2 },
   workingVoltage: { type: "number", role: "value.voltage", unit: "V", factor: 0.01, precision: 2 }
 };
+const canonicalChargingFieldNames = /* @__PURE__ */ new Map();
+for (const field of /* @__PURE__ */ new Set([
+  ...Object.keys(chargingFieldMetadata),
+  ...chargingBooleanFields,
+  ...excludedChargingSessionFields,
+  ...excludedChargingStatisticsFields
+])) {
+  canonicalChargingFieldNames.set(field.toLowerCase(), field);
+}
+function resolveChargingFieldName(key) {
+  var _a;
+  return (_a = canonicalChargingFieldNames.get(key.toLowerCase())) != null ? _a : key;
+}
 function getChargingFieldMetadata(key, series) {
   var _a, _b;
-  if (chargingBooleanFields.has(key)) {
-    return { type: "boolean", role: key === "ccuEleccLckCtrlDspCmd" ? "indicator" : "sensor" };
+  const canonicalKey = resolveChargingFieldName(key);
+  if (chargingBooleanFields.has(canonicalKey)) {
+    return { type: "boolean", role: canonicalKey === "ccuEleccLckCtrlDspCmd" ? "indicator" : "sensor" };
   }
   const profile = (_a = series == null ? void 0 : series.toUpperCase()) != null ? _a : "";
-  if (key === "onBdChrgrAltrCrntInptCrnt" && /EH32|MIS3E/.test(profile)) {
+  if (canonicalKey === "onBdChrgrAltrCrntInptCrnt" && /EH32|MIS3E/.test(profile)) {
     return { type: "number", role: "value.current", unit: "A", factor: 0.2, precision: 2 };
   }
-  if (key === "onBdChrgrAltrCrntInptVol" && /EH32|MIS3E/.test(profile)) {
+  if (canonicalKey === "onBdChrgrAltrCrntInptVol" && /EH32|MIS3E/.test(profile)) {
     return { type: "number", role: "value.voltage", unit: "V", factor: 2, precision: 1 };
   }
-  if (key === "bmsChrgOtptCrntReq" && profile.includes("MIS3E")) {
+  if (canonicalKey === "bmsChrgOtptCrntReq" && profile.includes("MIS3E")) {
     return { type: "number", role: "value.current", unit: "A", factor: 0.05, precision: 2 };
   }
-  if (["lastChargeEndingPower", "powerUsageSinceLastCharge"].includes(key) && profile.includes("AS33P")) {
+  if (["lastChargeEndingPower", "powerUsageSinceLastCharge"].includes(canonicalKey) && profile.includes("AS33P")) {
     return { type: "number", role: "value.energy", unit: "kWh", factor: 1 / 30, precision: 2 };
   }
-  return (_b = chargingFieldMetadata[key]) != null ? _b : { type: "number", role: "value" };
+  return (_b = chargingFieldMetadata[canonicalKey]) != null ? _b : { type: "number", role: "value" };
 }
 function normalizeChargingValue(key, value, series) {
   var _a;
-  const metadata = getChargingFieldMetadata(key, series);
+  const canonicalKey = resolveChargingFieldName(key);
+  const metadata = getChargingFieldMetadata(canonicalKey, series);
   if (metadata.type === "boolean") {
     return value === 1 || value === "1";
   }
-  if (key === "bmsOnBdChrgTrgtSOCDspCmd" && typeof value === "number") {
+  if (canonicalKey === "bmsOnBdChrgTrgtSOCDspCmd" && typeof value === "number") {
     return value >= 1 && value <= 7 ? (value + 3) * 10 : value;
   }
   if (typeof value !== "number" || value === -128 || metadata.factor === void 0) {
@@ -1204,6 +1220,7 @@ function resolveOdometerValue(liveValue, cachedValue) {
   normalizeChargingValue,
   normalizeVehicleStatusValue,
   resolveChargingFieldIds,
+  resolveChargingFieldName,
   resolveOdometerValue,
   resolveVehicleStatusFieldId,
   resolveVehicleStatusFieldName,

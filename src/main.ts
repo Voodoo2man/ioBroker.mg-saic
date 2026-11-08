@@ -33,6 +33,7 @@ import {
 	calculateRealtimePower,
 	getChargingFieldMetadata,
 	getChargingManagementFields,
+	resolveChargingFieldName,
 	getChargingStatisticsFields,
 	calculateAvailableBatteryEnergy,
 	excludedChargingSessionFields,
@@ -1086,28 +1087,33 @@ class MgSaic extends utils.Adapter {
 					return;
 				}
 				const value = valuesByField.get(responseField);
-				if (excludedFields.some(excludedField => excludedField === field)) {
+				const canonicalField = resolveChargingFieldName(field);
+				if (excludedFields.some(excludedField => excludedField === canonicalField)) {
 					await this.delObjectAsync(`${groupId}.${field}`);
 					continue;
 				}
 				const stateId = `${groupId}.${field}`;
-				if (value === undefined && field !== 'realtimePower' && field !== 'batteryAvailableEnergy') {
+				if (
+					value === undefined &&
+					canonicalField !== 'realtimePower' &&
+					canonicalField !== 'batteryAvailableEnergy'
+				) {
 					await this.delObjectAsync(stateId);
 					continue;
 				}
 				const normalizedValue =
-					field === 'realtimePower'
+					canonicalField === 'realtimePower'
 						? calculateRealtimePower(charging.chrgMgmtData.bmsPackCrnt, charging.chrgMgmtData.bmsPackVol)
 						: value === undefined
 							? undefined
-							: normalizeChargingValue(field, value, series);
-				if (normalizedValue === undefined && field !== 'batteryAvailableEnergy') {
+							: normalizeChargingValue(canonicalField, value, series);
+				if (normalizedValue === undefined && canonicalField !== 'batteryAvailableEnergy') {
 					await this.delObjectAsync(stateId);
 					continue;
 				}
-				const metadata = getChargingFieldMetadata(field, series);
+				const metadata = getChargingFieldMetadata(canonicalField, series);
 				const common: ioBroker.StateCommon = {
-					name: getChargingFieldName(field),
+					name: getChargingFieldName(canonicalField),
 					type:
 						metadata.type === 'boolean'
 							? 'boolean'

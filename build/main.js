@@ -978,23 +978,24 @@ class MgSaic extends utils.Adapter {
           return;
         }
         const value = valuesByField.get(responseField);
-        if (excludedFields.some((excludedField) => excludedField === field)) {
+        const canonicalField = (0, import_status_metadata.resolveChargingFieldName)(field);
+        if (excludedFields.some((excludedField) => excludedField === canonicalField)) {
           await this.delObjectAsync(`${groupId}.${field}`);
           continue;
         }
         const stateId = `${groupId}.${field}`;
-        if (value === void 0 && field !== "realtimePower" && field !== "batteryAvailableEnergy") {
+        if (value === void 0 && canonicalField !== "realtimePower" && canonicalField !== "batteryAvailableEnergy") {
           await this.delObjectAsync(stateId);
           continue;
         }
-        const normalizedValue = field === "realtimePower" ? (0, import_status_metadata.calculateRealtimePower)(charging.chrgMgmtData.bmsPackCrnt, charging.chrgMgmtData.bmsPackVol) : value === void 0 ? void 0 : (0, import_status_metadata.normalizeChargingValue)(field, value, series);
-        if (normalizedValue === void 0 && field !== "batteryAvailableEnergy") {
+        const normalizedValue = canonicalField === "realtimePower" ? (0, import_status_metadata.calculateRealtimePower)(charging.chrgMgmtData.bmsPackCrnt, charging.chrgMgmtData.bmsPackVol) : value === void 0 ? void 0 : (0, import_status_metadata.normalizeChargingValue)(canonicalField, value, series);
+        if (normalizedValue === void 0 && canonicalField !== "batteryAvailableEnergy") {
           await this.delObjectAsync(stateId);
           continue;
         }
-        const metadata = (0, import_status_metadata.getChargingFieldMetadata)(field, series);
+        const metadata = (0, import_status_metadata.getChargingFieldMetadata)(canonicalField, series);
         const common = {
-          name: (0, import_runtime_translations.getChargingFieldName)(field),
+          name: (0, import_runtime_translations.getChargingFieldName)(canonicalField),
           type: metadata.type === "boolean" ? "boolean" : typeof normalizedValue === "string" ? "string" : "number",
           role: typeof normalizedValue === "string" ? "text" : metadata.role,
           read: true,

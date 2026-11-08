@@ -1085,6 +1085,25 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
 	workingVoltage: { type: 'number', role: 'value.voltage', unit: 'V', factor: 0.01, precision: 2 },
 };
 
+const canonicalChargingFieldNames = new Map<string, string>();
+for (const field of new Set([
+	...Object.keys(chargingFieldMetadata),
+	...chargingBooleanFields,
+	...excludedChargingSessionFields,
+	...excludedChargingStatisticsFields,
+])) {
+	canonicalChargingFieldNames.set(field.toLowerCase(), field);
+}
+
+/**
+ * Return the canonical spelling for a known SAIC charging field.
+ *
+ * @param key SAIC charging field name.
+ */
+export function resolveChargingFieldName(key: string): string {
+	return canonicalChargingFieldNames.get(key.toLowerCase()) ?? key;
+}
+
 /**
  * Return known semantics and engineering units for a raw charging field.
  *
@@ -1092,23 +1111,24 @@ const chargingFieldMetadata: Record<string, ChargingFieldMetadata> = {
  * @param series SAIC vehicle series, when known.
  */
 export function getChargingFieldMetadata(key: string, series?: string): ChargingFieldMetadata {
-	if (chargingBooleanFields.has(key)) {
-		return { type: 'boolean', role: key === 'ccuEleccLckCtrlDspCmd' ? 'indicator' : 'sensor' };
+	const canonicalKey = resolveChargingFieldName(key);
+	if (chargingBooleanFields.has(canonicalKey)) {
+		return { type: 'boolean', role: canonicalKey === 'ccuEleccLckCtrlDspCmd' ? 'indicator' : 'sensor' };
 	}
 	const profile = series?.toUpperCase() ?? '';
-	if (key === 'onBdChrgrAltrCrntInptCrnt' && /EH32|MIS3E/.test(profile)) {
+	if (canonicalKey === 'onBdChrgrAltrCrntInptCrnt' && /EH32|MIS3E/.test(profile)) {
 		return { type: 'number', role: 'value.current', unit: 'A', factor: 0.2, precision: 2 };
 	}
-	if (key === 'onBdChrgrAltrCrntInptVol' && /EH32|MIS3E/.test(profile)) {
+	if (canonicalKey === 'onBdChrgrAltrCrntInptVol' && /EH32|MIS3E/.test(profile)) {
 		return { type: 'number', role: 'value.voltage', unit: 'V', factor: 2, precision: 1 };
 	}
-	if (key === 'bmsChrgOtptCrntReq' && profile.includes('MIS3E')) {
+	if (canonicalKey === 'bmsChrgOtptCrntReq' && profile.includes('MIS3E')) {
 		return { type: 'number', role: 'value.current', unit: 'A', factor: 0.05, precision: 2 };
 	}
-	if (['lastChargeEndingPower', 'powerUsageSinceLastCharge'].includes(key) && profile.includes('AS33P')) {
+	if (['lastChargeEndingPower', 'powerUsageSinceLastCharge'].includes(canonicalKey) && profile.includes('AS33P')) {
 		return { type: 'number', role: 'value.energy', unit: 'kWh', factor: 1 / 30, precision: 2 };
 	}
-	return chargingFieldMetadata[key] ?? { type: 'number', role: 'value' };
+	return chargingFieldMetadata[canonicalKey] ?? { type: 'number', role: 'value' };
 }
 
 /**
@@ -1123,11 +1143,12 @@ export function normalizeChargingValue(
 	value: number | string,
 	series?: string,
 ): number | string | boolean {
-	const metadata = getChargingFieldMetadata(key, series);
+	const canonicalKey = resolveChargingFieldName(key);
+	const metadata = getChargingFieldMetadata(canonicalKey, series);
 	if (metadata.type === 'boolean') {
 		return value === 1 || value === '1';
 	}
-	if (key === 'bmsOnBdChrgTrgtSOCDspCmd' && typeof value === 'number') {
+	if (canonicalKey === 'bmsOnBdChrgTrgtSOCDspCmd' && typeof value === 'number') {
 		return value >= 1 && value <= 7 ? (value + 3) * 10 : value;
 	}
 	if (typeof value !== 'number' || value === -128 || metadata.factor === undefined) {
