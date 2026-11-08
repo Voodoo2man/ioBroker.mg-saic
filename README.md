@@ -31,6 +31,7 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 ## Features
 
 - Connects ioBroker to the iSmart cloud service and retrieves vehicle status.
+- Retries a temporary startup failure with a bounded backoff so brief cloud outages do not leave the adapter stuck until a restart.
 - Provides remote controls for supported vehicle functions.
 - Supports climate, heating, and charging features where available for the vehicle.
 
@@ -43,6 +44,10 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 [![Donate](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
+### 0.1.3 (2026-11-08)
+
+- (Voodoo2man) Retried startup initialization after temporary cloud login and vehicle-list outages with bounded backoff, prevented false setting writes from triggering remote settings commands, and added the missing region labels in the Admin UI.
+
 ### 0.1.2 (2026-11-08)
 
 - (Voodoo2man) Prevented unsafe or case-colliding API fields and vehicle IDs from creating duplicate datapoints, kept status IDs stable across field-casing changes, scheduled polling after each completed cycle while honoring queued manual refreshes, and removed an unused cloud-backend translation.
