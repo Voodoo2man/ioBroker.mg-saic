@@ -43,9 +43,9 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 [![Donate](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
-### 0.1.3 (2026-11-08)
+### **WORK IN PROGRESS**
 
-- (Voodoo2man) Retried startup initialization after temporary cloud login and vehicle-list outages with bounded backoff, prevented false setting writes from triggering remote settings commands, and added the missing region labels in the Admin UI.
+- (Voodoo2man) Retry startup initialization after temporary cloud login and vehicle-list outages with bounded backoff, prevent false setting writes from triggering remote setting actions, and add the missing region labels in the Admin UI.
 
 ### 0.1.2 (2026-11-08)
 
