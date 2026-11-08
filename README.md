@@ -43,7 +43,7 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 [![Donate](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
-### **WORK IN PROGRESS**
+### 0.1.2 (2026-11-08)
 
 - (Voodoo2man) Prevented unsafe or case-colliding API fields and vehicle IDs from creating duplicate datapoints, kept status IDs stable across field-casing changes, scheduled polling after each completed cycle while honoring queued manual refreshes, and removed an unused cloud-backend translation.
 - (Voodoo2man) Replaced untrusted cloud error text with English code-based diagnostics and standardized the product title as MG/SAIC across locales.
@@ -74,10 +74,6 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 - (Voodoo2man) Fixed vehicle datapoint units and roles
 
 Older changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
-
-### 0.0.2 (2026-10-20)
-
-- (Voodoo2man) Added regional iSmart account setup, vehicle status, and supported remote controls.
 
 ## License
 
