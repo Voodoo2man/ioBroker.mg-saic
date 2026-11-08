@@ -141,8 +141,16 @@ const settingInputsByAction: Record<SettingAction, string[]> = {
 
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 const PENDING_SETTING_EDITS_FILE = 'pending-setting-edits.json';
-const MAX_INITIALIZATION_RETRIES = 3;
 const INITIALIZATION_RETRY_DELAY_MS = 60_000;
+const MAX_INITIALIZATION_RETRY_DELAY_MS = 5 * INITIALIZATION_RETRY_DELAY_MS;
+
+export function calculateInitializationRetryDelayMs(retryCount: number): number {
+	const attempts = Math.max(1, retryCount);
+	if (attempts <= 3) {
+		return INITIALIZATION_RETRY_DELAY_MS * attempts;
+	}
+	return MAX_INITIALIZATION_RETRY_DELAY_MS;
+}
 
 class MgSaic extends utils.Adapter {
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {
@@ -334,19 +342,23 @@ class MgSaic extends utils.Adapter {
 	}
 
 	private scheduleInitializationRetry(): void {
-		if (this.stopping || this.initializationRetryCount >= MAX_INITIALIZATION_RETRIES) {
+		if (this.stopping) {
 			return;
 		}
 		this.initializationRetryCount += 1;
+		const retryDelayMs = calculateInitializationRetryDelayMs(this.initializationRetryCount);
+		if (this.initializationRetryTimer !== undefined) {
+			this.clearTimeout(this.initializationRetryTimer);
+		}
 		this.log.info(
-			`Retrying SAIC initialization in ${INITIALIZATION_RETRY_DELAY_MS / 1000} seconds (${this.initializationRetryCount}/${MAX_INITIALIZATION_RETRIES})`,
+			`Retrying SAIC initialization in ${retryDelayMs / 1000} seconds (${this.initializationRetryCount})`,
 		);
 		this.initializationRetryTimer = this.setTimeout(() => {
 			this.initializationRetryTimer = undefined;
 			if (!this.stopping) {
 				void this.onReady();
 			}
-		}, INITIALIZATION_RETRY_DELAY_MS);
+		}, retryDelayMs);
 	}
 
 	private async authenticate(): Promise<void> {

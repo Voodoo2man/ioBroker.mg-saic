@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { MAX_POLL_INTERVAL_SECONDS, validateConfig } from './config';
+import { calculateInitializationRetryDelayMs } from './main';
 import { isIndiaRegion, resolveSaicRegion } from './regions';
 
 describe('validateConfig', () => {
@@ -60,5 +61,13 @@ describe('validateConfig', () => {
 		);
 		expect(validateConfig({ ...validEmailConfig, region: 'Unknown' })).to.include('Unsupported SAIC region');
 		expect(isIndiaRegion(' india ')).to.equal(true);
+	});
+
+	it('keeps retrying with a longer bounded backoff after repeated initialization failures', () => {
+		expect(calculateInitializationRetryDelayMs(1)).to.equal(60_000);
+		expect(calculateInitializationRetryDelayMs(2)).to.equal(120_000);
+		expect(calculateInitializationRetryDelayMs(3)).to.equal(180_000);
+		expect(calculateInitializationRetryDelayMs(4)).to.equal(300_000);
+		expect(calculateInitializationRetryDelayMs(10)).to.equal(300_000);
 	});
 });
