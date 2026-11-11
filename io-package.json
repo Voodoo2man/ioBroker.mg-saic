@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "mg-saic",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "news": {
+      "0.1.4": {
+        "en": "Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; removed the non-informative vehicle name state.",
+        "de": "Befehlsüberprüfung, Statuswerte, Ladefeldverwaltung, Fahrzeug-ID-Wiederverwendung und Cloud-Abfrageintervalle korrigiert; unaussagekräftiger Fahrzeugname entfernt.",
+        "ru": "Исправлена проверка ответа на команды, значения состояния, обработка полей зарядки, повторное использование идентификаторов транспортного средства и интервалы опроса в облаке; удалено неинформативное состояние названия транспортного средства.",
+        "pt": "Corrigiu a validação do comando, os valores de status, o controle do campo de carga, a reutilização da ID e os intervalos de pesquisa na nuvem; removeu o nome não informativo.",
+        "nl": "Gecorrigeerde validatie van commando's en reacties, statuswaarden, afhandeling van laadvelden, hergebruik van voertuig-ID's en polling-intervallen in de cloud; de niet-informatieve status van de voertuignaam is verwijderd.",
+        "fr": "Correction de la validation des commandes, des valeurs d'état, de la gestion des champs de recharge, de la réutilisation de l'identifiant du véhicule et des interrogations sur le cloud ; suppression du nom non informatif.",
+        "it": "Corretta convalida comando-risposta, valori di stato, gestione dei campi di ricarica, riuso dell'ID del veicolo e intervalli di cloud polling; rimosso il nome non informativo.",
+        "es": "Se corrigió la validación de la respuesta al comando, los valores de estado, el manejo del campo de carga, la reutilización del ID del vehículo y los intervalos de sondeo en la nube; se eliminó el estado no informativo del nombre del vehículo",
+        "pl": "Poprawiono walidację poleceń i odpowiedzi, wartości stanu, obsługę pola ładowania, ponowne wykorzystanie identyfikatora pojazdu i interwały ankietowania w chmurze; usunięto nieinformacyjny stan nazwy pojazdu.",
+        "uk": "Виправлена перевірка відповідей команд, значення стану, обробка поля зарядки, повторне використання ідентифікатора транспортного засобу та інтервали хмарного опитування; видалено неінформативний стан назви транспортного засобу.",
+        "zh-cn": "更正了命令响应验证、状态值、充电字段处理、车辆 ID 重复使用和云轮询间隔；删除了非信息性车辆名称状态。"
+      },
       "0.1.3": {
         "en": "Retry startup initialization after temporary cloud login and vehicle-list outages with bounded backoff, prevent false setting writes from triggering remote setting actions, and add the missing region labels in the Admin UI.",
         "de": "Starte den Start nach temporärem Cloud-Login und Ausfall der Fahrzeugliste mit begrenztem Backoff erneut, vermeide Ferneinstellungen durch Fehleingaben und füge fehlende Regionsbezeichnungen in der Admin-UI hinzu.",
@@ -80,19 +93,6 @@
         "pl": "* Ulepszona automatyzacja wydania, zaktualizowane kontrole wydania Node.js i usunięte metadane niepublikowanych wersji.\n* Dodano dane ładowania\n* Stabilne jednostki i role punktów danych pojazdu\n\nStarsze wpisy w dzienniku zmian są dostępne w [Changelog_old.md] (Changelog_old.md).",
         "uk": "* Покращена автоматизація випуску, оновлена перевірка випуску Node.js та видалені метадані неопублікованих версій.\n* Додані дані зарядки\n* Фіксовані блоки та ролі точок даних транспортного засобу\n\nСтаріші записи журналу змін доступні в [changelog_old.md] (changelog_old.md).",
         "zh-cn": "* 改进了发布自动化，更新了 Node.js 版本检查，并删除了未发布的版本元数据。\n* 添加了充电数据\n* 修复了车辆数据点单位和角色\n\n[CHANGELOG_OLD.MD] (CHANGELOG_OLD.MD) 中提供了较早的变更日志条目。"
-      },
-      "0.0.2": {
-        "en": "Added regional iSmart account setup, vehicle status, and supported remote controls.",
-        "de": "Regionales iSmart-Konto, Fahrzeugstatus und unterstützte Fernsteuerungen hinzugefügt.",
-        "ru": "Добавлена региональная настройка учетной записи iSmart, состояние автомобиля и поддерживаемые пульты дистанционного управления.",
-        "pt": "Adição da conta iSmart regional, status do veículo e controles remotos compatíveis.",
-        "nl": "Regionale iSmart-accountconfiguratie, voertuigstatus en ondersteunde afstandsbedieningen toegevoegd.",
-        "fr": "Ajout du compte iSmart régional, de l'état du véhicule et des télécommandes compatibles.",
-        "it": "Aggiunti account iSmart regionali, stato del veicolo e telecomandi supportati.",
-        "es": "Se añadió la configuración regional de la cuenta iSmart, el estado del vehículo y los mandos a distancia.",
-        "pl": "Dodano regionalną konfigurację konta iSmart, status pojazdu i obsługiwane zdalne sterowanie.",
-        "uk": "Додано регіональне налаштування облікового запису iSmart, стан транспортного засобу та підтримувані пульти дистанційного керування.",
-        "zh-cn": "添加了区域 iSmart 账户设置、车辆状态和支持的远程控制。"
       }
     },
     "titleLang": {
