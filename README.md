@@ -27,7 +27,7 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 3. Enter the account's email address or phone number and password. For phone login, also enter the phone country calling code.
 4. Set the status polling interval to 60 seconds or more. The default is 1800 seconds.
 5. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
-   Existing vehicle object IDs are reused if the cloud API changes the VIN casing. Device labels use the localized vehicle name, and `vehicles.<VIN>.name` contains the controlled English value `Vehicle` instead of account-provided text.
+   Existing vehicle object IDs are reused if the cloud API changes the VIN casing. Device labels use the localized generic vehicle name; the VIN, brand, model, and other available vehicle metadata are provided as read-only states.
 
 ## Features
 
@@ -48,7 +48,7 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 
 ### **WORK IN PROGRESS**
 
-- (Voodoo2man) Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; localized the vehicle name state.
+- (Voodoo2man) Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; removed the non-informative vehicle name state.
 
 ### 0.1.3 (2026-11-08)
 

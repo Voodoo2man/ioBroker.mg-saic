@@ -415,19 +415,6 @@ const runtimeNames = {
     uk: "VIN",
     "zh-cn": "\u8F66\u8F86\u8BC6\u522B\u7801"
   },
-  name: {
-    en: "Vehicle name",
-    de: "Fahrzeugname",
-    ru: "\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u0430\u0432\u0442\u043E\u043C\u043E\u0431\u0438\u043B\u044F",
-    pt: "Nome do ve\xEDculo",
-    nl: "Voertuignaam",
-    fr: "Nom du v\xE9hicule",
-    it: "Nome del veicolo",
-    es: "Nombre del veh\xEDculo",
-    pl: "Nazwa pojazdu",
-    uk: "\u041D\u0430\u0437\u0432\u0430 \u0430\u0432\u0442\u043E\u043C\u043E\u0431\u0456\u043B\u044F",
-    "zh-cn": "\u8F66\u8F86\u540D\u79F0"
-  },
   brandName: {
     en: "Brand",
     de: "Marke",

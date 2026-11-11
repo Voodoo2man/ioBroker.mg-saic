@@ -1342,7 +1342,6 @@ class MgSaic extends utils.Adapter {
 		const deviceId = `vehicles.${vehicleObjectId}`;
 		const values: Record<string, string | boolean | undefined> = {
 			vin: vehicle.vin,
-			name: getRuntimeName('vehicle').en,
 			brandName: vehicle.brandName,
 			modelName: vehicle.modelName,
 			series: vehicle.series,
@@ -1365,6 +1364,7 @@ class MgSaic extends utils.Adapter {
 		if (this.stopping) {
 			return;
 		}
+		await this.delObjectAsync(`${deviceId}.name`);
 		await this.ensureVehicleChargingGroups(vehicle.vin);
 		const commandsId = `${deviceId}.commands`;
 		await this.setObjectNotExistsAsync(commandsId, {
