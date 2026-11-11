@@ -5,10 +5,6 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -25,16 +21,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-var main_exports = {};
-__export(main_exports, {
-  calculateInitializationRetryDelayMs: () => calculateInitializationRetryDelayMs
-});
-module.exports = __toCommonJS(main_exports);
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_promises = require("node:fs/promises");
 var import_node_path = require("node:path");
 var import_config = require("./config");
+var import_initialization_retry = require("./initialization-retry");
 var import_saic_client = require("./saic-client");
 var import_regions = require("./regions");
 var import_refresh_command = require("./refresh-command");
@@ -121,15 +112,6 @@ const settingInputsByAction = {
 };
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 const PENDING_SETTING_EDITS_FILE = "pending-setting-edits.json";
-const INITIALIZATION_RETRY_DELAY_MS = 6e4;
-const MAX_INITIALIZATION_RETRY_DELAY_MS = 5 * INITIALIZATION_RETRY_DELAY_MS;
-function calculateInitializationRetryDelayMs(retryCount) {
-  const attempts = Math.max(1, retryCount);
-  if (attempts <= 3) {
-    return INITIALIZATION_RETRY_DELAY_MS * attempts;
-  }
-  return MAX_INITIALIZATION_RETRY_DELAY_MS;
-}
 class MgSaic extends utils.Adapter {
   constructor(options = {}) {
     super({
@@ -313,7 +295,7 @@ class MgSaic extends utils.Adapter {
       return;
     }
     this.initializationRetryCount += 1;
-    const retryDelayMs = calculateInitializationRetryDelayMs(this.initializationRetryCount);
+    const retryDelayMs = (0, import_initialization_retry.calculateInitializationRetryDelayMs)(this.initializationRetryCount);
     if (this.initializationRetryTimer !== void 0) {
       this.clearTimeout(this.initializationRetryTimer);
     }
@@ -1474,8 +1456,4 @@ if (require.main !== module) {
 } else {
   (() => new MgSaic())();
 }
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  calculateInitializationRetryDelayMs
-});
 //# sourceMappingURL=main.js.map

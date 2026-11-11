@@ -52,7 +52,6 @@ describe('runtime command translations', () => {
 			'lighting',
 			'energy',
 			'general',
-			'name',
 			'brandName',
 			'modelName',
 			'series',

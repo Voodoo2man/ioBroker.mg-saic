@@ -2,6 +2,7 @@ import * as utils from '@iobroker/adapter-core';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_POLL_INTERVAL_SECONDS, validateConfig, type MgSaicConfig } from './config';
+import { calculateInitializationRetryDelayMs } from './initialization-retry';
 import {
 	SaicApiClient,
 	SaicHttpError,
@@ -142,16 +143,6 @@ const settingInputsByAction: Record<SettingAction, string[]> = {
 
 const EXPOSE_SOURCE_STATUS_DATAPOINTS = false;
 const PENDING_SETTING_EDITS_FILE = 'pending-setting-edits.json';
-const INITIALIZATION_RETRY_DELAY_MS = 60_000;
-const MAX_INITIALIZATION_RETRY_DELAY_MS = 5 * INITIALIZATION_RETRY_DELAY_MS;
-
-export function calculateInitializationRetryDelayMs(retryCount: number): number {
-	const attempts = Math.max(1, retryCount);
-	if (attempts <= 3) {
-		return INITIALIZATION_RETRY_DELAY_MS * attempts;
-	}
-	return MAX_INITIALIZATION_RETRY_DELAY_MS;
-}
 
 class MgSaic extends utils.Adapter {
 	public constructor(options: Partial<utils.AdapterOptions> = {}) {

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { MAX_POLL_INTERVAL_SECONDS, validateConfig } from './config';
-import { calculateInitializationRetryDelayMs } from './main';
+import { calculateInitializationRetryDelayMs } from './initialization-retry';
 import { isIndiaRegion, resolveSaicRegion } from './regions';
 
 describe('validateConfig', () => {

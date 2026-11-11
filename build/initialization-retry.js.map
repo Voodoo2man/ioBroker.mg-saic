@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../src/initialization-retry.ts"],
+  "sourcesContent": ["const INITIALIZATION_RETRY_DELAY_MS = 60_000;\nconst MAX_INITIALIZATION_RETRY_DELAY_MS = 5 * INITIALIZATION_RETRY_DELAY_MS;\n\n/**\n * Returns the bounded delay before retrying initialization.\n *\n * @param retryCount Number of initialization failures.\n * @returns Retry delay in milliseconds.\n */\nexport function calculateInitializationRetryDelayMs(retryCount: number): number {\n\tconst attempts = Math.max(1, retryCount);\n\tif (attempts <= 3) {\n\t\treturn INITIALIZATION_RETRY_DELAY_MS * attempts;\n\t}\n\treturn MAX_INITIALIZATION_RETRY_DELAY_MS;\n}\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,MAAM,gCAAgC;AACtC,MAAM,oCAAoC,IAAI;AAQvC,SAAS,oCAAoC,YAA4B;AAC/E,QAAM,WAAW,KAAK,IAAI,GAAG,UAAU;AACvC,MAAI,YAAY,GAAG;AAClB,WAAO,gCAAgC;AAAA,EACxC;AACA,SAAO;AACR;",
+  "names": []
+}
