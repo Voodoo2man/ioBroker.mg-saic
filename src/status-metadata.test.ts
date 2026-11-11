@@ -335,6 +335,16 @@ describe('getVehicleStatusMetadata', () => {
 		expect(normalizeVehicleStatusValue('remoteClimateStatus', 2)).to.equal(2);
 	});
 
+	it('rejects undocumented codes for boolean vehicle status fields', () => {
+		for (const field of ['driverDoor', 'lockStatus', 'onlineStatus']) {
+			for (const invalidCode of [2, -1, 0.5]) {
+				expect(normalizeVehicleStatusValue(field, invalidCode), `${field} code ${invalidCode}`).to.equal(
+					undefined,
+				);
+			}
+		}
+	});
+
 	it('converts scaled GPS coordinates to decimal degrees', () => {
 		expect(normalizeVehicleStatusValue('gpsLatitude', 49832397)).to.equal(49.832397);
 		expect(normalizeVehicleStatusValue('gpsLongitude', 8504718)).to.equal(8.504718);

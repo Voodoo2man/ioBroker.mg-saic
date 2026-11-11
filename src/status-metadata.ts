@@ -1091,6 +1091,12 @@ for (const field of new Set([
 	...chargingBooleanFields,
 	...excludedChargingSessionFields,
 	...excludedChargingStatisticsFields,
+	'bmsReserCtrlDspCmd',
+	'bmsReserStHourDspCmd',
+	'bmsReserStMintueDspCmd',
+	'bmsReserSpHourDspCmd',
+	'bmsReserSpMintueDspCmd',
+	'packEnergyKwh',
 ])) {
 	canonicalChargingFieldNames.set(field.toLowerCase(), field);
 }
@@ -1339,8 +1345,8 @@ export function normalizeVehicleStatusValue(key: string, value: number): number 
 	if (canonicalKey === 'statusTime') {
 		return value * 1000;
 	}
-	if (booleanStatusFields.has(canonicalKey) && (value === 0 || value === 1)) {
-		return value === 1;
+	if (booleanStatusFields.has(canonicalKey)) {
+		return value === 0 ? false : value === 1 ? true : undefined;
 	}
 	if (canonicalKey === 'gpsLatitude' || canonicalKey === 'gpsLongitude') {
 		if (value === -128) {

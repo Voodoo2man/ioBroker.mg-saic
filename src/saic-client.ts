@@ -6,7 +6,9 @@ import {
 	encryptSaicRequestBody,
 	sha1PasswordDigest,
 } from './saic-crypto';
-import { resolveVehicleStatusFieldName } from './status-metadata';
+import { resolveChargingFieldName, resolveVehicleStatusFieldName } from './status-metadata';
+
+const EVENT_POLL_INTERVAL_MS = 10_000;
 
 /** Options required to sign in to the global SAIC API. */
 export interface SaicLoginOptions {
@@ -200,6 +202,14 @@ const UNSAFE_API_ID_SEGMENT_CHARACTER = /[^A-Za-z0-9_-]/;
 const UNSAFE_API_ID_SEGMENT_NAMES = new Set(
 	[...Object.getOwnPropertyNames(Object.prototype), 'prototype'].map(name => name.toLowerCase()),
 );
+const CHARGING_IDENTIFIER_FIELDS = new Set([
+	'chargingpileid',
+	'charginggunid',
+	'chargingstationid',
+	'pileid',
+	'gunid',
+	'stationid',
+]);
 const INVALID_API_FIELD_NAME = '<invalid field name>';
 
 function isSafeApiIdSegment(value: string): boolean {
@@ -712,12 +722,13 @@ export class SaicApiClient {
 				![2, 3, 7].includes(returnCode) &&
 				((Boolean(nextEventId) && envelope.data === undefined) || (returnCode !== 0 && eventId !== '0'))
 			) {
-				if (this.monotonicNow() >= deadline) {
+				const remainingMs = deadline - this.monotonicNow();
+				if (remainingMs < EVENT_POLL_INTERVAL_MS) {
 					throw new Error(
 						`SAIC charging status timed out while waiting for vehicle data (code ${formatSaicResponseCode(envelope.code)})`,
 					);
 				}
-				await this.wait(Math.min(3_000, Math.max(0, deadline - this.monotonicNow())), signal);
+				await this.wait(EVENT_POLL_INTERVAL_MS, signal);
 				if (nextEventId) {
 					eventId = nextEventId;
 				}
@@ -742,20 +753,27 @@ export class SaicApiClient {
 				const fields: Record<string, number | string | undefined> = {};
 				const seenFields = new Set(reservedFields.map(field => field.toLowerCase()));
 				for (const [field, raw] of Object.entries(value as Record<string, unknown>)) {
-					const canonicalField = field.toLowerCase();
-					if (!isSafeApiIdSegment(field) || seenFields.has(canonicalField)) {
+					const fieldName = resolveChargingFieldName(field);
+					const canonicalKey = fieldName.toLowerCase();
+					if (!isSafeApiIdSegment(field) || seenFields.has(canonicalKey)) {
 						continue;
 					}
-					seenFields.add(canonicalField);
-					setOwnRecordField(
-						fields,
-						field,
-						typeof raw === 'number' && Number.isFinite(raw) && raw !== -128
+					seenFields.add(canonicalKey);
+					const numericString = typeof raw === 'string' && /^-?\d+(?:\.\d+)?$/.test(raw.trim());
+					const identifier = typeof raw === 'string' && CHARGING_IDENTIFIER_FIELDS.has(canonicalKey);
+					const numericValue =
+						typeof raw === 'number'
 							? raw
-							: typeof raw === 'string' && raw.length > 0
-								? raw
-								: undefined,
-					);
+							: numericString && typeof raw === 'string'
+								? Number(raw)
+								: undefined;
+					const value =
+						identifier && typeof raw === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(raw)
+							? raw
+							: numericValue !== undefined && Number.isFinite(numericValue) && numericValue !== -128
+								? numericValue
+								: undefined;
+					setOwnRecordField(fields, fieldName, value);
 				}
 				return fields;
 			};
@@ -786,7 +804,7 @@ export class SaicApiClient {
 		signal?: AbortSignal,
 	): Promise<void> {
 		const commandRequest = this.vehicleCommandRequest(command, vin);
-		await this.sendSignedVehiclePost(options, accessToken, vin, commandRequest, signal);
+		await this.sendSignedVehiclePost(options, accessToken, commandRequest, signal);
 	}
 
 	/**
@@ -818,7 +836,6 @@ export class SaicApiClient {
 		await this.sendSignedVehiclePost(
 			options,
 			accessToken,
-			vin,
 			{
 				path: '/vehicle/control',
 				body: {
@@ -852,13 +869,12 @@ export class SaicApiClient {
 		signal?: AbortSignal,
 	): Promise<void> {
 		const request = this.vehicleSettingRequest(setting, vin);
-		await this.sendSignedVehiclePost(options, accessToken, vin, request, signal);
+		await this.sendSignedVehiclePost(options, accessToken, request, signal);
 	}
 
 	private async sendSignedVehiclePost(
 		options: SaicLoginOptions,
 		accessToken: string,
-		vin: string,
 		commandRequest: SaicVehicleCommandRequest,
 		signal?: AbortSignal,
 	): Promise<void> {
@@ -921,7 +937,7 @@ export class SaicApiClient {
 					response.status,
 				);
 			}
-			if (!eventPolling) {
+			if (!eventPolling && responseText.trim() === '') {
 				return;
 			}
 			const decodedBody = this.decodeResponseBody(response, responseText, 'vehicle command');
@@ -935,6 +951,12 @@ export class SaicApiClient {
 			const nextEventId = response.headers.get('event-id');
 			if (returnCode === 401 || returnCode === 403) {
 				throw new SaicHttpError(`SAIC rejected vehicle command with code ${returnCode}`, returnCode);
+			}
+			if (!eventPolling) {
+				if (returnCode !== 0) {
+					throw new Error(`SAIC rejected vehicle command with code ${formatSaicResponseCode(envelope.code)}`);
+				}
+				return;
 			}
 			if ([2, 3, 7].includes(returnCode)) {
 				throw new Error(`SAIC rejected vehicle command with code ${formatSaicResponseCode(envelope.code)}`);
@@ -950,7 +972,11 @@ export class SaicApiClient {
 			} else if (!nextEventId) {
 				throw new Error('SAIC vehicle command response contained neither data nor an event id');
 			}
-			await this.wait(Math.min(1_000, Math.max(0, deadline - this.monotonicNow())), signal);
+			const remainingMs = deadline - this.monotonicNow();
+			if (remainingMs < EVENT_POLL_INTERVAL_MS) {
+				throw new Error('SAIC vehicle command timed out while waiting for confirmation');
+			}
+			await this.wait(EVENT_POLL_INTERVAL_MS, signal);
 		}
 		throw new Error('SAIC vehicle command exceeded its event polling limit');
 	}
@@ -1315,12 +1341,13 @@ export class SaicApiClient {
 				![2, 3, 7].includes(returnCode) &&
 				((Boolean(nextEventId) && envelope.data === undefined) || (returnCode !== 0 && eventId !== '0'))
 			) {
-				if (this.monotonicNow() >= deadline) {
+				const remainingMs = deadline - this.monotonicNow();
+				if (remainingMs < EVENT_POLL_INTERVAL_MS) {
 					throw new RetryableVehicleStatusError(
 						`SAIC vehicle status timed out while waiting for vehicle data (code ${formatSaicResponseCode(envelope.code)})`,
 					);
 				}
-				await this.wait(Math.min(3_000, Math.max(0, deadline - this.monotonicNow())), signal);
+				await this.wait(EVENT_POLL_INTERVAL_MS, signal);
 				if (nextEventId) {
 					eventId = nextEventId;
 				}

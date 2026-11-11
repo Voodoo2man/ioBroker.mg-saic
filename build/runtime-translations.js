@@ -207,6 +207,19 @@ const runtimeNames = {
     uk: "\u0410\u0432\u0442\u043E\u043C\u043E\u0431\u0456\u043B\u044C",
     "zh-cn": "\u8F66\u8F86"
   },
+  vehicle: {
+    en: "Vehicle",
+    de: "Fahrzeug",
+    ru: "\u0410\u0432\u0442\u043E\u043C\u043E\u0431\u0438\u043B\u044C",
+    pt: "Ve\xEDculo",
+    nl: "Voertuig",
+    fr: "V\xE9hicule",
+    it: "Veicolo",
+    es: "Veh\xEDculo",
+    pl: "Pojazd",
+    uk: "\u0410\u0432\u0442\u043E\u043C\u043E\u0431\u0456\u043B\u044C",
+    "zh-cn": "\u8F66\u8F86"
+  },
   currentStatus: {
     en: "Current status",
     de: "Aktueller Status",

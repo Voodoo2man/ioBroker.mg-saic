@@ -39,6 +39,7 @@ describe('runtime command translations', () => {
 			'chargeStatus',
 			'commandGroup_schedules',
 			'commandGroup_vehicle',
+			'vehicle',
 			'currentStatus',
 			'liveStatus',
 			'cachedStatus',
