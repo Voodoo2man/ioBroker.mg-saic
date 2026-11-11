@@ -521,7 +521,7 @@ describe('SaicApiClient vehicle status', () => {
 
 		expect(callCount).to.equal(2);
 		expect(requestEventIds).to.deep.equal(['0', 'control-event-1']);
-		expect(waitDurations).to.deep.equal([1_000]);
+		expect(waitDurations).to.deep.equal([10_000]);
 	});
 
 	it('maps HA-style vehicle controls to the documented SAIC endpoints and payloads', async () => {
@@ -786,6 +786,21 @@ describe('SaicApiClient vehicle status', () => {
 		}
 	});
 
+	it('rejects a battery-heating setting rejected in its one-shot response', async () => {
+		const client = new SaicApiClient(() => Promise.resolve(new Response('{"code":3,"msg":"fixture rejection"}')));
+
+		try {
+			await client.sendVehicleSetting(options, 'test-access-token', 'LSJWH4095NS012345', {
+				type: 'batteryHeatingSchedule',
+				enabled: true,
+				start: '23:05',
+			});
+			expect.fail('Expected the rejected setting to fail');
+		} catch (error) {
+			expect((error as Error).message).to.equal('SAIC rejected vehicle command with code 3');
+		}
+	});
+
 	it('rejects invalid settings before making a request', async () => {
 		let requestMade = false;
 		const client = new SaicApiClient(() => {
@@ -838,7 +853,7 @@ describe('SaicApiClient vehicle status', () => {
 
 		const signedPath = `/vehicle/status?vin=${createHash('sha256').update('LSJWH4095RN166487').digest('hex')}&vehStatusReqType=2`;
 		expect(requests).to.have.length(2);
-		expect(requests.map(request => request.timestamp)).to.deep.equal(['1700000000123', '1700000003123']);
+		expect(requests.map(request => request.timestamp)).to.deep.equal(['1700000000123', '1700000010123']);
 		expect(requests.map(request => request.eventId)).to.deep.equal(['0', 'event-next']);
 		for (const request of requests) {
 			expect(request.signature).to.equal(
@@ -1163,7 +1178,7 @@ describe('SaicApiClient vehicle status', () => {
 		});
 		expect(callCount).to.equal(2);
 		expect(eventIds).to.deep.equal(['0', '573135718']);
-		expect(waitDurations).to.deep.equal([3_000]);
+		expect(waitDurations).to.deep.equal([10_000]);
 	});
 
 	it('classifies SAIC code 4 without a pending event as a remote instruction failure', async () => {
@@ -1326,7 +1341,7 @@ describe('SaicApiClient vehicle status', () => {
 				expect((error as Error).message).to.equal(`SAIC vehicle status request was rejected with code ${code}`);
 			}
 			expect(callCount).to.equal(2);
-			expect(waitDurations).to.deep.equal([3_000]);
+			expect(waitDurations).to.deep.equal([10_000]);
 		}
 	});
 
@@ -1363,7 +1378,7 @@ describe('SaicApiClient vehicle status', () => {
 			basicVehicleStatus: { lockStatus: 1 },
 		});
 		expect(requestEventIds).to.deep.equal(['0', 'event-123', 'event-123']);
-		expect(waitDurations).to.deep.equal([3_000, 3_000]);
+		expect(waitDurations).to.deep.equal([10_000, 10_000]);
 	});
 
 	it('keeps the full timeout and starts an outer retry after the event-id deadline', async () => {
@@ -1404,14 +1419,11 @@ describe('SaicApiClient vehicle status', () => {
 
 		await client.getVehicleStatus(options, 'test-access-token', 'LSJWH4095RN166487');
 
-		expect(requestCount).to.equal(11);
+		expect(requestCount).to.equal(4);
 		expect(requestEventIds[0]).to.equal('0');
-		expect(requestEventIds[9]).to.equal('event-123');
-		expect(requestEventIds[10]).to.equal('0');
-		expect(waitDurations).to.deep.equal([...Array(10).fill(3_000), 15_000]);
-		expect(debugMessages).to.include(
-			'GET /vehicle/status for LSJWH4095RN166487, request 10, timeout 3000ms, event-id event-123',
-		);
+		expect(requestEventIds[2]).to.equal('event-123');
+		expect(requestEventIds[3]).to.equal('0');
+		expect(waitDurations).to.deep.equal([...Array(3).fill(10_000), 15_000]);
 	});
 
 	it('retries timed-out live HTTP waits until a response is received', async () => {
@@ -1540,7 +1552,11 @@ describe('SaicApiClient charging status', () => {
 						code: 0,
 						data: {
 							chrgMgmtData: { bmsChrgSts: 1, ccuEleccLckCtrlDspCmd: 1, missing: -128 },
-							rvsChargeStatus: { chargingGunState: 2, chargingPileID: 'pile-7' },
+							rvsChargeStatus: {
+								chargingGunState: 2,
+								chargingPileID: 'pile-7',
+								chargingStationId: '00123',
+							},
 						},
 					}),
 				),
@@ -1550,7 +1566,7 @@ describe('SaicApiClient charging status', () => {
 
 		expect(await client.getVehicleChargingStatus(options, 'test-access-token', 'LSJWH4099NS012345')).to.deep.equal({
 			chrgMgmtData: { bmsChrgSts: 1, ccuEleccLckCtrlDspCmd: 1, missing: undefined },
-			rvsChargeStatus: { chargingGunState: 2, chargingPileID: 'pile-7' },
+			rvsChargeStatus: { chargingGunState: 2, chargingPileID: 'pile-7', chargingStationId: '00123' },
 		});
 		expect(requestUrl?.pathname).to.equal('/api.app/v1/vehicle/charging/mgmtData');
 		expect(requestUrl?.searchParams.get('vin')).to.equal(
@@ -1600,6 +1616,49 @@ describe('SaicApiClient charging status', () => {
 		expect(await client.getVehicleChargingStatus(options, 'test-access-token', 'LSJWH4095RN166487')).to.deep.equal({
 			chrgMgmtData: { bmsChrgSts: 1, 'safe-key_1': 5 },
 			rvsChargeStatus: { chargingGunState: 1, packEnergyKwh: 25 },
+		});
+	});
+
+	it('canonicalizes known charging field casing before returning API records', async () => {
+		const client = new SaicApiClient(() =>
+			Promise.resolve(
+				new Response(
+					JSON.stringify({
+						code: 0,
+						data: {
+							chrgMgmtData: {
+								BMSPACKCRNT: 19000,
+								BMSPACKVOL: 1400,
+								BMSPACKSOCDSP: 500,
+								TOTALBATTERYCAPACITY: 640,
+								BMSALTNGCHRGCRNTDSPCMD: 1,
+								BMSRESERCTRLDSPCMD: 2,
+								BMSRESERSTHOURDSPCMD: 23,
+								BMSRESERSTMINTUEDSPCMD: 5,
+								WORKINGCURRENT: '123.4',
+								MISSINGVALUE: '-128',
+							},
+							rvsChargeStatus: { PACKENERGYKWH: 32, STATUSNOTE: 'Lädt' },
+						},
+					}),
+				),
+			),
+		);
+
+		expect(await client.getVehicleChargingStatus(options, 'test-access-token', 'LSJWH4095NS012345')).to.deep.equal({
+			chrgMgmtData: {
+				bmsPackCrnt: 19000,
+				bmsPackVol: 1400,
+				bmsPackSOCDsp: 500,
+				totalBatteryCapacity: 640,
+				bmsAltngChrgCrntDspCmd: 1,
+				bmsReserCtrlDspCmd: 2,
+				bmsReserStHourDspCmd: 23,
+				bmsReserStMintueDspCmd: 5,
+				workingCurrent: 123.4,
+				MISSINGVALUE: undefined,
+			},
+			rvsChargeStatus: { packEnergyKwh: 32, STATUSNOTE: undefined },
 		});
 	});
 

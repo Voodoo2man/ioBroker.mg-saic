@@ -25,14 +25,16 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 1. Install the adapter and create an instance in ioBroker Admin.
 2. Select the account region and login type (email or phone number).
 3. Enter the account's email address or phone number and password. For phone login, also enter the phone country calling code.
-4. Set the status polling interval >60 seconds. The default is 1800 seconds.
+4. Set the status polling interval to 60 seconds or more. The default is 1800 seconds.
 5. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
+   Existing vehicle object IDs are reused if the cloud API changes the VIN casing. Device labels use the localized generic vehicle name; the VIN, brand, model, and other available vehicle metadata are provided as read-only states.
 
 ## Features
 
 - Connects ioBroker to the iSmart cloud service and retrieves vehicle status.
 - Provides remote controls for supported vehicle functions.
 - Supports climate, heating, and charging features where available for the vehicle.
+- Omits unrecognized free-form charging text while retaining numeric measurements and validated charging-point identifiers.
 
 ## Installation
 
@@ -43,6 +45,11 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 [![Donate](https://camo.githubusercontent.com/ef8c60305542390406855547e32850909812a73c4abada236de22a6dc88b313f/68747470733a2f2f7777772e70617970616c6f626a656374732e636f6d2f64655f44452f44452f692f62746e2f62746e5f646f6e61746543435f4c472e676966)](https://www.paypal.com/donate/?hosted_button_id=3RJQGSJNRSHUJ)
 
 ## Changelog
+
+### **WORK IN PROGRESS**
+
+- (Voodoo2man) Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; removed the non-informative vehicle name state.
+
 ### 0.1.3 (2026-11-08)
 
 - (Voodoo2man) Retry startup initialization after temporary cloud login and vehicle-list outages with bounded backoff, prevent false setting writes from triggering remote setting actions, and add the missing region labels in the Admin UI.
