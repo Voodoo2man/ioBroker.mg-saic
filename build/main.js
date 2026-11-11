@@ -1207,7 +1207,7 @@ class MgSaic extends utils.Adapter {
     const deviceId = `vehicles.${vehicleObjectId}`;
     const values = {
       vin: vehicle.vin,
-      name: vehicle.name,
+      name: (0, import_runtime_translations.getRuntimeName)("vehicle").en,
       brandName: vehicle.brandName,
       modelName: vehicle.modelName,
       series: vehicle.series,
