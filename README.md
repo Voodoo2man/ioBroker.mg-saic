@@ -1,7 +1,9 @@
 # ioBroker MG/SAIC
 
+
 [![NPM version](https://img.shields.io/npm/v/iobroker.mg-saic.svg)](https://www.npmjs.com/package/iobroker.mg-saic)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.mg-saic.svg)](https://www.npmjs.com/package/iobroker.mg-saic)
+![Number of Installations](http://iobroker.live/badges/mg-saic-stable.svg)
+![Number of Installations](http://iobroker.live/badges/mg-saic-installed.svg)
 
 <img src="admin/MG.png" alt="MG" width="314">
 
