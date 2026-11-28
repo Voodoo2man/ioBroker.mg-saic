@@ -2,6 +2,8 @@
 	"iSmart account": "iSmart 账户",
 	"Cloud connection": "云连接",
 	"Account credentials": "账户凭据",
+	"iSmart login credential": "iSmart 登录凭据",
+	"Select or create a Login/Password credential. The login must match the login type selected above.": "选择或创建 Login/Password 凭据。登录名必须与上方选择的登录类型相匹配。",
 	"Status updates": "状态更新",
 	"To avoid possible session interference with the mobile app, use a separate iSmart account for ioBroker where possible. Share the vehicle with that account and grant the permissions needed for your intended use.": "为避免与手机应用的会话发生冲突，请尽可能为 ioBroker 使用单独的 iSmart 账户。将车辆共享给该账户，并授予预期用途所需的权限。",
 	"Region": "地区",
@@ -16,8 +18,6 @@
 	"Login type": "登录类型",
 	"Email": "电子邮箱",
 	"Phone number": "电话号码",
-	"Email address or phone number": "电子邮箱地址或电话号码",
 	"Phone country calling code": "国际电话区号",
-	"Password": "密码",
 	"Status polling interval (seconds)": "状态轮询间隔（秒）"
 }

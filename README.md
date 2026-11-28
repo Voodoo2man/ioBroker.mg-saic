@@ -17,19 +17,20 @@ For manufacturer information, see [MG Motor](https://www.mgmotor.eu/) and [SAIC 
 
 - Node.js 22.22.2 or later is required.
 - ioBroker js-controller 7.2.2 or later is required.
-- ioBroker Admin 8.2.0 or later is required.
+- ioBroker Admin 8.3.15 or later is required.
 - Use an iSmart account that has access to the vehicle. A separate account shared with the vehicle is recommended to avoid interfering with the mobile app session.
-- Have the account password ready. The adapter stores it as a protected setting.
+- Create or select a custom Login/Password credential in ioBroker's credential store. Use the iSmart email address or phone number as its login.
 - Select the region for the account. Available regions are European Union, China, Australia, Brazil, Israel, Turkey, Thailand, and Rest of World. India is not supported.
 
 ### Configure the adapter
 
 1. Install the adapter and create an instance in ioBroker Admin.
-2. Select the account region and login type (email or phone number).
-3. Enter the account's email address or phone number and password. For phone login, also enter the phone country calling code.
-4. Set the status polling interval to 60 seconds or more. The default is 1800 seconds.
-5. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
+2. Select the account region, login type (email or phone number), and the matching custom Login/Password credential from the credential store. The credential's login must be the iSmart email address or phone number; the password is stored centrally. For phone login, also enter the phone country calling code in the adapter settings.
+3. Set the status polling interval to 60 seconds or more. The default is 1800 seconds.
+4. Save the settings and start the instance. Vehicles available to the account appear under `vehicles.<VIN>`.
    Existing vehicle object IDs are reused if the cloud API changes the VIN casing. Device labels use the localized generic vehicle name; the VIN, brand, model, and other available vehicle metadata are provided as read-only states.
+
+The adapter does not import previously saved native login or password values. On startup it clears those deprecated fields; configure a central Login/Password credential before the adapter can connect.
 
 ## Features
 
@@ -49,6 +50,11 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 </a>
 
 ## Changelog
+
+### **WORK IN PROGRESS**
+
+- (Voodoo2man) Moved iSmart login credentials to ioBroker's credential store; existing users must select a Login/Password credential.
+
 ### 0.1.4 (2026-11-11)
 
 - (Voodoo2man) Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; removed the non-informative vehicle name state.

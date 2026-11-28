@@ -8,12 +8,10 @@ export interface MgSaicConfig {
 	region?: string;
 	/** Whether the account identifier is an email address or phone number. */
 	accountType?: string;
-	/** Email address or phone number used to sign in. */
-	accountIdentifier?: string;
+	/** Selected custom Login/Password credential in ioBroker's credential store. */
+	credentialId?: string;
 	/** International calling code when using a phone account. */
 	phoneCountryCode?: string;
-	/** Account password, decrypted by ioBroker for the adapter process. */
-	password?: string;
 }
 
 export const DEFAULT_POLL_INTERVAL_SECONDS = 1800;
@@ -44,14 +42,11 @@ export function validateConfig(config: MgSaicConfig): string[] {
 	if (config.accountType !== 'email' && config.accountType !== 'phone') {
 		errors.push('Login type must be email or phone');
 	}
-	if (!config.accountIdentifier?.trim()) {
-		errors.push('Email address or phone number is required');
+	if (!config.credentialId?.trim()) {
+		errors.push('An ioBroker Login/Password credential is required');
 	}
 	if (config.accountType === 'phone' && !config.phoneCountryCode?.trim()) {
 		errors.push('Phone country calling code is required');
-	}
-	if (!config.password) {
-		errors.push('Password is required');
 	}
 	return errors;
 }

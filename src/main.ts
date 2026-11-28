@@ -2,6 +2,11 @@ import * as utils from '@iobroker/adapter-core';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DEFAULT_POLL_INTERVAL_SECONDS, validateConfig, type MgSaicConfig } from './config';
+import {
+	clearDeprecatedNativeCredentials,
+	getLoginPasswordCredential,
+	type AccountLoginCredential,
+} from './credentials';
 import { calculateInitializationRetryDelayMs } from './initialization-retry';
 import {
 	SaicApiClient,
@@ -236,6 +241,12 @@ class MgSaic extends utils.Adapter {
 		this.subscribeStates('commands.refresh');
 		await this.setState('info.connection', false, true);
 		await this.setState('info.backend', config.region?.trim() || 'not configured', true);
+		if (!(await this.clearDeprecatedCredentials())) {
+			const message = 'Could not clear deprecated iSmart login values from the adapter configuration';
+			await this.setState('info.lastError', message, true);
+			this.scheduleInitializationRetry();
+			return;
+		}
 		const errors = validateConfig(config);
 		await this.setState('info.lastError', errors.join('; '), true);
 		if (errors.length) {
@@ -269,9 +280,9 @@ class MgSaic extends utils.Adapter {
 			this.loginOptions = {
 				...region,
 				accountType: config.accountType as 'email' | 'phone',
-				accountIdentifier: config.accountIdentifier ?? '',
+				accountIdentifier: '',
 				phoneCountryCode: config.phoneCountryCode,
-				password: config.password ?? '',
+				password: '',
 			};
 			await this.authenticate();
 			if (this.stopping) {
@@ -356,10 +367,48 @@ class MgSaic extends utils.Adapter {
 		}, retryDelayMs);
 	}
 
+	private async clearDeprecatedCredentials(): Promise<boolean> {
+		const cleared = await clearDeprecatedNativeCredentials(
+			this.config as unknown as Record<string, unknown>,
+			config => this.updateConfig(config),
+		);
+		if (!cleared) {
+			this.log.warn('Could not clear deprecated iSmart login values from the adapter configuration');
+		}
+		return cleared;
+	}
+
+	private async resolveCentralCredential(credentialId: string): Promise<AccountLoginCredential> {
+		let credential: utils.Credentials.CredentialInfo<utils.Credentials.LoginPasswordCredentials>;
+		try {
+			credential = await utils.Credentials.getCredentials<utils.Credentials.LoginPasswordCredentials>(
+				this,
+				credentialId,
+			);
+		} catch {
+			throw new Error('The selected central iSmart credential is unavailable');
+		}
+		try {
+			return getLoginPasswordCredential(credential, values => utils.Credentials.getCredentialForm(values));
+		} catch {
+			throw new Error('Select a custom Login/Password credential for the iSmart account');
+		}
+	}
+
 	private async authenticate(): Promise<void> {
 		if (!this.client || !this.loginOptions || this.stopping) {
 			throw new Error('Adapter is stopping or not initialized');
 		}
+		const credentialId = (this.config as unknown as MgSaicConfig).credentialId?.trim();
+		if (!credentialId) {
+			throw new Error('An ioBroker Login/Password credential is required');
+		}
+		const credential = await this.resolveCentralCredential(credentialId);
+		if (this.stopping) {
+			return;
+		}
+		this.loginOptions.accountIdentifier = credential.accountIdentifier;
+		this.loginOptions.password = credential.password;
 		const login = await this.client.login(this.loginOptions, this.abortController.signal);
 		if (this.stopping) {
 			return;

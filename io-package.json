@@ -157,7 +157,7 @@
     ],
     "globalDependencies": [
       {
-        "admin": ">=8.2.0"
+        "admin": ">=8.3.15"
       }
     ]
   },
@@ -165,8 +165,9 @@
     "region": "EU",
     "pollIntervalSeconds": 1800,
     "accountType": "email",
-    "accountIdentifier": "",
+    "credentialId": "",
     "phoneCountryCode": "",
+    "accountIdentifier": "",
     "password": ""
   },
   "objects": [],
