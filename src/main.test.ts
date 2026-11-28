@@ -7,8 +7,7 @@ describe('validateConfig', () => {
 	const validEmailConfig = {
 		region: 'EU',
 		accountType: 'email',
-		accountIdentifier: 'driver@example.com',
-		password: 'secret',
+		credentialId: 'system.credentials.mg-saic_0',
 	};
 
 	it('accepts a complete email account configuration', () => {
@@ -36,13 +35,26 @@ describe('validateConfig', () => {
 		);
 	});
 
-	it('reports missing required account fields', () => {
+	it('requires a selected central credential and no adapter-native login fields', () => {
 		expect(validateConfig({})).to.deep.equal([
 			'Region/backend code is required',
 			'Login type must be email or phone',
-			'Email address or phone number is required',
-			'Password is required',
+			'An ioBroker Login/Password credential is required',
 		]);
+		expect(
+			validateConfig({
+				region: 'EU',
+				accountType: 'email',
+				credentialId: 'system.credentials.mg-saic_0',
+			}),
+		).to.deep.equal([]);
+		const legacyOnlyConfig = {
+			region: 'EU',
+			accountType: 'email',
+			accountIdentifier: 'legacy@example.com',
+			password: 'legacy-password',
+		};
+		expect(validateConfig(legacyOnlyConfig)).to.include('An ioBroker Login/Password credential is required');
 	});
 
 	it('resolves supported global regions to their API routes', () => {

@@ -42,14 +42,11 @@ function validateConfig(config) {
   if (config.accountType !== "email" && config.accountType !== "phone") {
     errors.push("Login type must be email or phone");
   }
-  if (!((_b = config.accountIdentifier) == null ? void 0 : _b.trim())) {
-    errors.push("Email address or phone number is required");
+  if (!((_b = config.credentialId) == null ? void 0 : _b.trim())) {
+    errors.push("An ioBroker Login/Password credential is required");
   }
   if (config.accountType === "phone" && !((_c = config.phoneCountryCode) == null ? void 0 : _c.trim())) {
     errors.push("Phone country calling code is required");
-  }
-  if (!config.password) {
-    errors.push("Password is required");
   }
   return errors;
 }

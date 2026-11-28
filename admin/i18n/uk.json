@@ -2,6 +2,8 @@
 	"iSmart account": "Обліковий запис iSmart",
 	"Cloud connection": "Підключення до хмари",
 	"Account credentials": "Облікові дані облікового запису",
+	"iSmart login credential": "Облікові дані iSmart",
+	"Select or create a Login/Password credential. The login must match the login type selected above.": "Виберіть або створіть облікові дані Login/Password. Логін має відповідати вибраному вище типу входу.",
 	"Status updates": "Оновлення стану",
 	"To avoid possible session interference with the mobile app, use a separate iSmart account for ioBroker where possible. Share the vehicle with that account and grant the permissions needed for your intended use.": "Щоб уникнути можливих конфліктів сеансів із мобільним застосунком, за можливості використовуйте окремий обліковий запис iSmart для ioBroker. Надайте йому доступ до автомобіля та необхідні для використання дозволи.",
 	"Region": "Регіон",
@@ -16,8 +18,6 @@
 	"Login type": "Тип входу",
 	"Email": "Електронна пошта",
 	"Phone number": "Номер телефону",
-	"Email address or phone number": "Адреса електронної пошти або номер телефону",
 	"Phone country calling code": "Міжнародний телефонний код країни",
-	"Password": "Пароль",
 	"Status polling interval (seconds)": "Інтервал опитування стану (секунди)"
 }

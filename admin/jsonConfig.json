@@ -68,10 +68,17 @@
 					"xs": 12,
 					"sm": 12
 				},
-				"accountIdentifier": {
-					"type": "text",
-					"label": "Email address or phone number",
-					"maxLength": 254,
+				"_credentialHelp": {
+					"type": "staticText",
+					"text": "Select or create a Login/Password credential. The login must match the login type selected above.",
+					"xs": 12,
+					"sm": 12
+				},
+				"credentialId": {
+					"type": "credential",
+					"label": "iSmart login credential",
+					"credentialType": "custom",
+					"disableCreation": false,
 					"xs": 12,
 					"sm": 12,
 					"md": 6,
@@ -83,16 +90,6 @@
 					"label": "Phone country calling code",
 					"maxLength": 8,
 					"hidden": "data.accountType !== 'phone'",
-					"xs": 12,
-					"sm": 12,
-					"md": 6,
-					"lg": 6,
-					"xl": 6
-				},
-				"password": {
-					"type": "password",
-					"label": "Password",
-					"visible": false,
 					"xs": 12,
 					"sm": 12,
 					"md": 6,

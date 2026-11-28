@@ -25,6 +25,7 @@ var utils = __toESM(require("@iobroker/adapter-core"));
 var import_promises = require("node:fs/promises");
 var import_node_path = require("node:path");
 var import_config = require("./config");
+var import_credentials = require("./credentials");
 var import_initialization_retry = require("./initialization-retry");
 var import_saic_client = require("./saic-client");
 var import_regions = require("./regions");
@@ -148,7 +149,7 @@ class MgSaic extends utils.Adapter {
   pendingSettingEditsWrite = Promise.resolve();
   settingEditSequence = 0;
   async onReady() {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c;
     if (this.stopping) {
       return;
     }
@@ -195,6 +196,12 @@ class MgSaic extends utils.Adapter {
     this.subscribeStates("commands.refresh");
     await this.setState("info.connection", false, true);
     await this.setState("info.backend", ((_a = config.region) == null ? void 0 : _a.trim()) || "not configured", true);
+    if (!await this.clearDeprecatedCredentials()) {
+      const message = "Could not clear deprecated iSmart login values from the adapter configuration";
+      await this.setState("info.lastError", message, true);
+      this.scheduleInitializationRetry();
+      return;
+    }
     const errors = (0, import_config.validateConfig)(config);
     await this.setState("info.lastError", errors.join("; "), true);
     if (errors.length) {
@@ -226,9 +233,9 @@ class MgSaic extends utils.Adapter {
       this.loginOptions = {
         ...region,
         accountType: config.accountType,
-        accountIdentifier: (_c = config.accountIdentifier) != null ? _c : "",
+        accountIdentifier: "",
         phoneCountryCode: config.phoneCountryCode,
-        password: (_d = config.password) != null ? _d : ""
+        password: ""
       };
       await this.authenticate();
       if (this.stopping) {
@@ -278,7 +285,7 @@ class MgSaic extends utils.Adapter {
         this.log.warn("No vehicles are linked to this SAIC account.");
         return;
       }
-      const intervalSeconds = (_e = config.pollIntervalSeconds) != null ? _e : import_config.DEFAULT_POLL_INTERVAL_SECONDS;
+      const intervalSeconds = (_c = config.pollIntervalSeconds) != null ? _c : import_config.DEFAULT_POLL_INTERVAL_SECONDS;
       this.pollIntervalMilliseconds = intervalSeconds * 1e3;
       await this.refreshVehicleStatuses();
     } catch (error) {
@@ -309,10 +316,47 @@ class MgSaic extends utils.Adapter {
       }
     }, retryDelayMs);
   }
+  async clearDeprecatedCredentials() {
+    const cleared = await (0, import_credentials.clearDeprecatedNativeCredentials)(
+      this.config,
+      (config) => this.updateConfig(config)
+    );
+    if (!cleared) {
+      this.log.warn("Could not clear deprecated iSmart login values from the adapter configuration");
+    }
+    return cleared;
+  }
+  async resolveCentralCredential(credentialId) {
+    let credential;
+    try {
+      credential = await utils.Credentials.getCredentials(
+        this,
+        credentialId
+      );
+    } catch {
+      throw new Error("The selected central iSmart credential is unavailable");
+    }
+    try {
+      return (0, import_credentials.getLoginPasswordCredential)(credential, (values) => utils.Credentials.getCredentialForm(values));
+    } catch {
+      throw new Error("Select a custom Login/Password credential for the iSmart account");
+    }
+  }
   async authenticate() {
+    var _a;
     if (!this.client || !this.loginOptions || this.stopping) {
       throw new Error("Adapter is stopping or not initialized");
     }
+    const credentialId = (_a = this.config.credentialId) == null ? void 0 : _a.trim();
+    if (!credentialId) {
+      throw new Error("An ioBroker Login/Password credential is required");
+    }
+    const credential = await this.resolveCentralCredential(credentialId);
+    if (this.stopping) {
+      return;
+    }
+    this.loginOptions.accountIdentifier = credential.accountIdentifier;
+    this.loginOptions.password = credential.password;
     const login = await this.client.login(this.loginOptions, this.abortController.signal);
     if (this.stopping) {
       return;

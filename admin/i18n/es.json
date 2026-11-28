@@ -2,6 +2,8 @@
 	"iSmart account": "Cuenta iSmart",
 	"Cloud connection": "Conexión a la nube",
 	"Account credentials": "Credenciales de la cuenta",
+	"iSmart login credential": "Credencial de acceso de iSmart",
+	"Select or create a Login/Password credential. The login must match the login type selected above.": "Seleccione o cree una credencial Login/Password. El login debe coincidir con el tipo seleccionado arriba.",
 	"Status updates": "Actualizaciones de estado",
 	"To avoid possible session interference with the mobile app, use a separate iSmart account for ioBroker where possible. Share the vehicle with that account and grant the permissions needed for your intended use.": "Para evitar posibles interferencias de sesión con la aplicación móvil, utiliza una cuenta iSmart independiente para ioBroker siempre que sea posible. Comparte el vehículo con esa cuenta y concede los permisos necesarios para el uso previsto.",
 	"Region": "Región",
@@ -16,8 +18,6 @@
 	"Login type": "Tipo de inicio de sesión",
 	"Email": "Correo electrónico",
 	"Phone number": "Número de teléfono",
-	"Email address or phone number": "Dirección de correo electrónico o número de teléfono",
 	"Phone country calling code": "Prefijo telefónico internacional",
-	"Password": "Contraseña",
 	"Status polling interval (seconds)": "Intervalo de consulta del estado (segundos)"
 }
