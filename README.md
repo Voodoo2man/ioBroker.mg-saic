@@ -51,9 +51,9 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 
 ## Changelog
 
-### **WORK IN PROGRESS**
+### 0.2.0 (2026-11-28)
 
-- (Voodoo2man) Moved iSmart login credentials to ioBroker's credential store; existing users must select a Login/Password credential.
+- (Voodoo2man) Moved iSmart credentials to ioBroker's credential store; existing users must create a new Login/Password credential and re-enter their login details.
 
 ### 0.1.4 (2026-11-11)
 
@@ -73,12 +73,6 @@ The adapter is published on npm and available from ioBroker's Latest adapter rep
 
 - (Voodoo2man) Lowered the minimum Node.js requirement to 22.22.2.
 - (Voodoo2man) Improved charging datapoint labels and units, enforced safe polling interval limits, and added manufacturer references.
-
-### 0.1.0 (2026-11-01)
-
-- (Voodoo2man) Reported real-time charging power in kW using the pack current and voltage.
-- (Voodoo2man) Applied confirmed profile-specific charging conversions.
-- (Voodoo2man) Calculated available battery energy from battery level and usable capacity.
 
 Older changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).
 

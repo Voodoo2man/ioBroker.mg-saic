@@ -1,8 +1,21 @@
 {
   "common": {
     "name": "mg-saic",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "news": {
+      "0.2.0": {
+        "en": "Moved iSmart credentials to ioBroker's credential store; existing users must create a new Login/Password credential and re-enter their login details.",
+        "de": "iSmart-Anmeldedaten wurden in den ioBroker-Anmeldedatenspeicher verschoben. Bestehende Nutzer müssen einen neuen Login/Password-Eintrag erstellen und ihre Zugangsdaten erneut eingeben.",
+        "ru": "Учетные данные iSmart перенесены в хранилище учетных данных ioBroker; существующие пользователи должны создать новую запись Login/Password и повторно ввести данные для входа.",
+        "pt": "As credenciais do iSmart foram movidas para o armazenamento de credenciais do ioBroker; usuários existentes devem criar uma nova credencial Login/Password e inserir novamente seus dados de acesso.",
+        "nl": "iSmart-inloggegevens zijn verplaatst naar de inloggegevensopslag van ioBroker; bestaande gebruikers moeten een nieuwe Login/Password-credential aanmaken en hun inloggegevens opnieuw invoeren.",
+        "fr": "Les identifiants iSmart ont été déplacés vers le magasin d'identifiants d'ioBroker ; les utilisateurs existants doivent créer une nouvelle entrée Login/Password et saisir à nouveau leurs identifiants.",
+        "it": "Le credenziali iSmart sono state spostate nell'archivio credenziali di ioBroker; gli utenti esistenti devono creare una nuova credenziale Login/Password e inserire di nuovo i dati di accesso.",
+        "es": "Las credenciales de iSmart se trasladaron al almacén de credenciales de ioBroker; los usuarios existentes deben crear una nueva credencial Login/Password y volver a introducir sus datos de acceso.",
+        "pl": "Dane uwierzytelniające iSmart przeniesiono do magazynu poświadczeń ioBroker; obecni użytkownicy muszą utworzyć nowe poświadczenie Login/Password i ponownie wprowadzić dane logowania.",
+        "uk": "Облікові дані iSmart перенесено до сховища облікових даних ioBroker; наявні користувачі мають створити новий запис Login/Password і повторно ввести дані для входу.",
+        "zh-cn": "已将iSmart凭据移至IOBroker的凭据存储库；现有用户必须创建新的登录/密码凭据并重新输入其登录详细信息。"
+      },
       "0.1.4": {
         "en": "Corrected command-response validation, status values, charging-field handling, vehicle ID reuse, and cloud polling intervals; removed the non-informative vehicle name state.",
         "de": "Befehlsüberprüfung, Statuswerte, Ladefeldverwaltung, Fahrzeug-ID-Wiederverwendung und Cloud-Abfrageintervalle korrigiert; unaussagekräftiger Fahrzeugname entfernt.",
@@ -80,19 +93,6 @@
         "pl": "Poprawione współrzędne GPS.\nNaprawiono nieprawidłowe wartości punktów danych.\nUsunięto zduplikowane i nieistotne punkty danych.\nUstaw minimalną wersję administratora na 8.2.0, js-controller 7.2.2, node.js 24",
         "uk": "Виправлені координати GPS.\nВиправлені неправильні значення точки даних.\nВидалені дублікати та невідповідні точки даних.\nВстановіть мінімальну версію адміністратора на 8.2.0, js-контролер 7.2.2, node.js 24",
         "zh-cn": "更正了 GPS 坐标。\n修复了不正确的数据点值。\n删除了重复和不相关的数据点。\n将 admin 的最小版本设置为 8.2.0、js-controller 7.2.2、node.js 24"
-      },
-      "0.0.3": {
-        "en": "* Improved release automation, updated Node.js release checks, and removed unpublished version metadata.\n* Added charging data\n* Fixed vehicle datapoint units and roles\n\nOlder changelog entries are available in [CHANGELOG_OLD.md](CHANGELOG_OLD.md).",
-        "de": "* Verbesserte Release-Automation, neue Node.js Release-Checks und unveröffentlichte Metadaten.\n* Ladedaten hinzugefügt\n* Feste Fahrzeugdatengeräte und Rollen\n\nÄltere Changelog-Einträge gibt es in [Changelog_OLD.md] (CHANGELOG_OLD.md).",
-        "ru": "* Улучшена автоматизация релизов, обновлены проверки версий Node.js и удалены неопубликованные метаданные версий.\n* Добавлены данные о зарядке\n* Единицы и роли стационарных точек данных транспортных средств\n\nБолее старые записи в журнале изменений доступны в [Changelog_old.md] (Changelog_old.md).",
-        "pt": "* Melhorou a automação de versões, atualizou as verificações do Node.js e removeu metadados inéditos.\n* Mais dados de carga\n* Unidades e funções fixas do veículo\n\nEntradas antigas do changelog estão disponíveis em [CHANGELOG_OLD.md].",
-        "nl": "* Verbeterde versieautomatisering, bijgewerkte releasecontroles voor Node.js en verwijderde metagegevens van niet-gepubliceerde versies.\n* Oplaadgegevens toegevoegd\n* Datapunteenheden en rollen voor vaste voertuigen\n\nOudere changelog-items zijn beschikbaar in [Changelog_old.md] (Changelog_old.md).",
-        "fr": "* Automatisation des versions, mises à jour de Node.js et suppression des métadonnées des versions inédites.\n* Données de charge ajoutées\n* Unités de données et rôles fixes\n\nLes anciennes entrées du changelog se trouvent dans [CHANGELOG_OLD.md] (CHANGELOG_OLD.md).",
-        "it": "* Migliore automazione dei rilasci, controlli aggiornati di Node.js e metadati inediti rimossi.\n* Dati di ricarica aggiunti\n* Unità e ruoli fissi del veicolo\n\nLe vecchie voci del changelog sono disponibili in [changelog_old.md].",
-        "es": "* Se mejoró la automatización de lanzamientos, se actualizaron las comprobaciones de Node.js y se eliminaron los metadatos de las\n* Datos de carga añadidos\n* Unidades y funciones fijas de puntos de datos del vehículo\n\nLas entradas antiguas de la lista de cambios están en [ChangeLog_old.md] (ChangeLog_old.md).",
-        "pl": "* Ulepszona automatyzacja wydania, zaktualizowane kontrole wydania Node.js i usunięte metadane niepublikowanych wersji.\n* Dodano dane ładowania\n* Stabilne jednostki i role punktów danych pojazdu\n\nStarsze wpisy w dzienniku zmian są dostępne w [Changelog_old.md] (Changelog_old.md).",
-        "uk": "* Покращена автоматизація випуску, оновлена перевірка випуску Node.js та видалені метадані неопублікованих версій.\n* Додані дані зарядки\n* Фіксовані блоки та ролі точок даних транспортного засобу\n\nСтаріші записи журналу змін доступні в [changelog_old.md] (changelog_old.md).",
-        "zh-cn": "* 改进了发布自动化，更新了 Node.js 版本检查，并删除了未发布的版本元数据。\n* 添加了充电数据\n* 修复了车辆数据点单位和角色\n\n[CHANGELOG_OLD.MD] (CHANGELOG_OLD.MD) 中提供了较早的变更日志条目。"
       }
     },
     "titleLang": {

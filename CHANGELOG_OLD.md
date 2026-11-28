@@ -1,4 +1,10 @@
 # Changelog archive
+## 0.1.0 (2026-11-01)
+
+- (Voodoo2man) Reported real-time charging power in kW using the pack current and voltage.
+- (Voodoo2man) Applied confirmed profile-specific charging conversions.
+- (Voodoo2man) Calculated available battery energy from battery level and usable capacity.
+
 ## 0.0.4 (2026-10-24)
 
 - (Voodoo2man) Corrected GPS coordinates.
