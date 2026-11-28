@@ -72,7 +72,10 @@
 					"type": "staticText",
 					"text": "Select or create a Login/Password credential. The login must match the login type selected above.",
 					"xs": 12,
-					"sm": 12
+					"sm": 12,
+					"md": 12,
+					"lg": 12,
+					"xl": 12
 				},
 				"credentialId": {
 					"type": "credential",
